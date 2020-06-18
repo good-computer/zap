@@ -6,6 +6,9 @@
 ; xmodem receive buffer (start of page)
 .equ xr_buffer_h = high(0x0100)
 
+; general ram buffer
+.equ ram_buffer_h = high(0x0100)
+
 ; input buffer
 .equ input_buffer     = 0x0060
 .equ input_buffer_end = 0x00df
@@ -485,6 +488,51 @@ usart_tx_bytes_hex_done:
   rcall usart_tx_byte
 
   ret
+
+
+; read from ram into general buffer
+; wraps start, read and end
+; inputs:
+;   r16:r17: location to read from
+;   r18: length
+ram_load:
+
+  ; save length
+  push r18
+
+  ; bank 0
+  clr r18
+  rcall ram_read_start
+
+  ; restore length, set up buffer and read
+  pop r16
+  clr ZL
+  ldi ZH, ram_buffer_h
+  rcall ram_read_bytes
+
+  rjmp ram_end
+
+; write from general buffer into ram
+; wraps start, read and end
+; inputs:
+;   r16:r17: location to write to
+;   r18: length
+ram_save:
+
+  ; save length
+  push r18
+
+  ; bank 0
+  clr r18
+  rcall ram_write_Start
+
+  ; restore length, set up buffer and read
+  pop r16
+  clr ZL
+  ldi ZH, ram_buffer_h
+  rcall ram_write_bytes
+
+  rjmp ram_end
 
 
 ; begin read from SRAM
