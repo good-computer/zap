@@ -391,7 +391,7 @@ decode_variable_number:
   ret
 
   cpi r16, 16
-  brlo PC+8
+  brsh PC+8
 
   ; var 1-15: local var
 
