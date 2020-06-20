@@ -9,9 +9,20 @@
 ; general ram buffer
 .equ ram_buffer_h = high(0x0100)
 
+; empty stack
+.equ z_stack_top = 0x0300
+
 ; input buffer
-.equ input_buffer     = 0x0060
-.equ input_buffer_end = 0x00df
+.equ input_buffer     = 0x0380
+.equ input_buffer_end = 0x03af
+
+; zmachine program counter
+.def z_pc_l = r24
+.def z_pc_h = r25
+
+; pointer to past arg0 on stack for current op
+.def z_argp_l = r22
+.def z_argp_h = r23
 
 
 .cseg
@@ -96,7 +107,7 @@ boot_loop:
   rcall usart_tx_byte
 
   cpi r17, 'r' ; run
-  breq zmain
+  breq main
 
   cpi r17, 'l' ; load
   brne boot
@@ -105,9 +116,558 @@ boot_loop:
   rjmp boot
 
 
-zmain:
+main:
+
+  ; zero stack
+  ldi XL, low(z_stack_top)
+  ldi XH, high(z_stack_top)
+
+  ; load header
+  clr r16
+  clr r17
+  ldi r18, 0x40
+  rcall ram_load
+
+  clr ZL
+  ldi ZH, ram_buffer_h
+  ldi r16, 0x40
+  clr r17
+  rcall usart_tx_bytes_hex
+
+  ; XXX fill header?
+
+  ; initialise PC
+  lds z_pc_l, (ram_buffer_h<<8)+0x7
+  lds z_pc_h, (ram_buffer_h<<8)+0x6
+
+  ; set up to stream from PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+
+decode_op:
+  mov r16, z_pc_h
+  rcall usart_tx_byte_hex
+  mov r16, z_pc_l
+  rcall usart_tx_byte_hex
+  ldi r16, ' '
+  rcall usart_tx_byte
+
+  ; get opcode
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  push r16
+  rcall usart_tx_byte_hex
+  ldi r16, 0xa
+  rcall usart_tx_byte
+  ldi r16, 0xd
+  rcall usart_tx_byte
+  pop r16
+
+  ; instruction decode
+  ; 0 t t xxxxx: long op (2op, 1-bit type)
+  ; 10 tt  xxxx: short op (1op/0op, 2-bit type)
+  ; 11 0  xxxxx: variable op (2op, type byte)
+  ; 11 1  xxxxx: variable op (Vop, type byte)
+
+  ; working towards:
+  ; r20: opcode
+  ; r21: type byte (4x2bits)
+  ; on codepath for lookup for proper instruction type
+
+  ; 0xxxxxxx: "long" op
+  tst r16
+  brpl decode_op_long
+
+  ; 10xxxxxx: "short" op
+  bst r16, 6
+  brtc decode_op_short
+
+  ; 11axxxxx: "variable" op
+
+  ; bottom five bits are opcode
+  mov r20, r16
+  ldi r17, 0x1f
+  and r20, r17
+
+  ; take optype bit
+  bst r16, 5
+
+  ; type byte follows
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  mov r21, r16
+
+  ; bit 5 clear=2op, set=vop
+  brts PC+8
+
+  ; ready 2op lookup
+  ldi ZL, low(op_2_table)
+  ldi ZH, high(op_2_table)
+
+  ; 2op, take two
+  rcall decode_arg
+  movw r2, r0
+  rcall decode_arg
+  movw r4, r0
+  rjmp prep_op
+
+  ; ready vop lookup
+  ldi ZL, low(op_v_table)
+  ldi ZH, high(op_v_table)
+
+  ; push type byte
+  push r21
+
+  ; vop, take up to four
+  cpi r21, 0xc0
+  brsh decode_op_short_done
+  rcall decode_arg
+  movw r2, r0
+  cpi r21, 0xc0
+  brsh decode_op_short_done
+  rcall decode_arg
+  movw r4, r0
+  cpi r21, 0xc0
+  brsh decode_op_short_done
+  rcall decode_arg
+  movw r6, r0
+  cpi r21, 0xc0
+  brsh decode_op_short_done
+  rcall decode_arg
+  movw r8, r0
+
+decode_op_short_done:
+
+  ; restore type byte
+  pop r21
+
+  rjmp prep_op
+
+decode_op_long:
+  ; bottom five bits are opcode
+  mov r20, r16
+  ldi r17, 0x1f
+  and r20, r17
+
+  ; this is a 2op, so %11 for bottom two args
+  ldi r17, 0xf
+
+  ; type bit for first arg
+  bst r16, 6
+  brts PC+3
+  ; %0 -> %01 (byte constant)
+  sbr r17, 0x40
+  rjmp PC+2
+  ; %1 -> %10 (variable number)
+  sbr r17, 0x80
+
+  ; type bit for second arg
+  bst r16, 5
+  brts PC+3
+  ; %0 -> %01 (byte constant)
+  sbr r17, 0x10
+  rjmp PC+2
+  ; %1 -> %10 (variable number)
+  sbr r17, 0x20
+
+  ; move final type byte into place
+  mov r21, r17
+
+  ; save type byte
+  push r21
+
+  ; ready 2op lookup
+  ldi ZL, low(op_2_table)
+  ldi ZH, high(op_2_table)
+
+  ; 2op, take two
+  rcall decode_arg
+  movw r2, r0
+  rcall decode_arg
+  movw r4, r0
+
+  ; restore type byte
+  pop r21
+
+  rjmp prep_op
+
+decode_op_short:
+  ; bottom four bits are opcode
+  mov r20, r16
+  ldi r17, 0x1f
+  and r20, r17
+
+  ; 1op (or 0op), type in bits 4 & 5, shift up to 6 & 7
+  lsl r16
+  lsl r16
+
+  ; no-arg the remainder
+  sbr r16, 0x3f
+  mov r21, r16
+
+  ; test first arg, none=0op, something=1op
+  cpi r16, 0xc0
+  brsh PC+4
+
+  ; ready 0op lookup
+  ldi ZL, low(op_0_table)
+  ldi ZH, high(op_0_table)
+  rjmp prep_op
+
+  ; ready 1op lookup
+  ldi ZL, low(op_1_table)
+  ldi ZH, high(op_1_table)
+
+  ; save type byte
+  push r21
+
+  ; 1op, take one
+  rcall decode_arg
+  movw r2, r0
+
+  ; restore type byte
+  pop r21
+
+  rjmp prep_op
+
+
+; take the next arg from PC
+; inputs:
+;   r21: arg type byte, %wwxxyyzz
+; outputs:
+;   r0:r1: decoded arg (low:high)
+decode_arg:
+
+  ; take top two bits
+  clr r16
+  lsl r21
+  rol r16
+  lsl r21
+  rol r16
+
+  ; set bottom two bits, so we always have an end state
+  sbr r21, 0x3
+
+  ; %00: word constant
+  cpi r16, 0x0
+  breq decode_word_constant
+
+  ; %01: byte constant
+  cpi r16, 0x1
+  breq decode_byte_constant
+
+  ; %10: variable number
+  cpi r16, 0x2
+  breq decode_variable_number
+
+  ret
+
+decode_variable_number:
+  ; variable number
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  tst r16
+  brne PC+4
+
+  ; var 0: take top of stack
+  ld r1, X+
+  ld r0, X+
+  ret
+
+  cpi r16, 16
+  brlo PC+7
+
+  ; var 1-15: local var
+
+  ; double for words
+  lsl r16
+
+  ; compute arg position on stack
+  movw YL, z_argp_l
+  sub YL, r16
+  sbci YH, 0
+
+  ; take it
+  ld r1, Y+
+  ld r0, Y+
+  ret
+
+  ; var 16-255: global var
   sbi PORTB, PB0
   rjmp PC
+
+decode_word_constant:
+  ; word constant, take two bytes
+  rcall ram_read_byte
+  mov r1, r16
+  rcall ram_read_byte
+  mov r0, r16
+  adiw z_pc_l, 2
+  ret
+
+decode_byte_constant:
+  ; byte constant, take one byte
+  rcall ram_read_byte
+  mov r1, r16
+  clr r0
+  adiw z_pc_l, 1
+  ret
+
+
+prep_op:
+
+  ; r20: opcode
+  ; r21: type byte
+  ; Z: op table
+  ; args in r2:r3, r4:r5, r6:r7, r8:r9
+
+  add ZL, r20
+  brcc PC+2
+  inc ZH
+
+  ijmp
+
+  ; XXX now what?
+  sbi PORTB, PB0
+  rjmp PC
+
+op_0_table:
+  rjmp op_unimpl ; rtrue
+  rjmp op_unimpl ; rfalse
+  rjmp op_unimpl ; print (literal_string)
+  rjmp op_unimpl ; print_ret (literal-string)
+  rjmp op_unimpl ; nop
+  rjmp op_unimpl ; save ?(label) [v4 save -> (result)] [v5 illegal]
+  rjmp op_unimpl ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
+  rjmp op_unimpl ; restart
+  rjmp op_unimpl ; ret_popped
+  rjmp op_unimpl ; pop [v5/6 catch -> (result)]
+  rjmp op_unimpl ; quit
+  rjmp op_unimpl ; new_line
+  rjmp op_unimpl ; [v3] show_status [v4 illegal]
+  rjmp op_unimpl ; [v3] verify ?(label)
+  rjmp op_unimpl ; [v5] [extended opcode]
+  rjmp op_unimpl ; [v5] piracy ?(label)
+
+op_1_table:
+  rjmp op_unimpl ; jz a ?(label)
+  rjmp op_unimpl ; get_sibling object -> (result) ?(label)
+  rjmp op_unimpl ; get_child object -> (result) ?(label)
+  rjmp op_unimpl ; get_parent object -> (result)
+  rjmp op_unimpl ; get_prop_len property-address -> (result)
+  rjmp op_unimpl ; inc (variable)
+  rjmp op_unimpl ; dec (variable)
+  rjmp op_unimpl ; print_addr byte-address-of-string
+  rjmp op_unimpl ; [v4] call_1s routine -> (result)
+  rjmp op_unimpl ; remove_obj object
+  rjmp op_unimpl ; print_obj object
+  rjmp op_unimpl ; ret value
+  rjmp op_unimpl ; jump ?(label)
+  rjmp op_unimpl ;  print_paddr packed-address-of-string
+  rjmp op_unimpl ; load (variable) -> result
+  rjmp op_unimpl ; not value -> (result) [v5 call_1n routine]
+
+op_2_table:
+  rjmp op_unimpl ; [nonexistent]
+  rjmp op_unimpl ; je a b ?(label)
+  rjmp op_unimpl ; jl a b ?(label)
+  rjmp op_unimpl ; jg a b ?(label)
+  rjmp op_unimpl ; dec_chk (variable) value ?(label)
+  rjmp op_unimpl ; inc_chk (variable) value ?(label)
+  rjmp op_unimpl ; jin obj1 obj2 ?(label)
+  rjmp op_unimpl ; test bitmap flags ?(label)
+  rjmp op_unimpl ; or a b -> (result)
+  rjmp op_unimpl ; and a b -> (result)
+  rjmp op_unimpl ; test_attr object attribute ?(label)
+  rjmp op_unimpl ; set_attr object attribute
+  rjmp op_unimpl ; clear_attr object attribute
+  rjmp op_unimpl ; store (variable) value
+  rjmp op_unimpl ; insert_obj object destination
+  rjmp op_unimpl ; loadw array word-index -> (result)
+  rjmp op_unimpl ; loadb array byte-index -> (result)
+  rjmp op_unimpl ; get_prop object property -> (result)
+  rjmp op_unimpl ; get_prop_addr object property -> (result)
+  rjmp op_unimpl ; get_next_prop object property -> (result)
+  rjmp op_unimpl ; add a b -> (result)
+  rjmp op_unimpl ; sub a b -> (result)
+  rjmp op_unimpl ; mul a b -> (result)
+  rjmp op_unimpl ; div a b -> (result)
+  rjmp op_unimpl ; mod a b -> (result)
+  rjmp op_unimpl ; [v4] call_2s routine arg1 -> (result)
+  rjmp op_unimpl ; [v5] call_2n routine arg1
+  rjmp op_unimpl ; [v5] set_colour foreground background [v6 set_colour foreground background window]
+  rjmp op_unimpl ; [v5] throw value stack-frame
+  rjmp op_unimpl ; [nonexistent]
+  rjmp op_unimpl ; [nonexistent]
+  rjmp op_unimpl ; [nonexistent]
+
+op_v_table:
+  rjmp op_call   ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
+  rjmp op_unimpl ; storew array word-index value
+  rjmp op_unimpl ; storeb array byte-index value
+  rjmp op_unimpl ; put_prop object property value
+  rjmp op_unimpl ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
+  rjmp op_unimpl ; print_char output-character-code
+  rjmp op_unimpl ; print_num value
+  rjmp op_unimpl ; random range -> (result)
+  rjmp op_unimpl ; push value
+  rjmp op_unimpl ; pull (variable) [v6 pull stack -> (result)]
+  rjmp op_unimpl ; [v3] split_window lines
+  rjmp op_unimpl ; [v3] set_window lines
+  rjmp op_unimpl ; [v4] call_vs2 routine (0..7) -> (result)
+  rjmp op_unimpl ; [v4] erase_window window
+  rjmp op_unimpl ; [v4] erase_line value [v6 erase_line pixels]
+  rjmp op_unimpl ; [v4] set_cursor line column [v6 set_cursor line column window]
+  rjmp op_unimpl ; [v4] get_cursor array
+  rjmp op_unimpl ; [v4] set_text_style style
+  rjmp op_unimpl ; [v4] buffer_mode flag
+  rjmp op_unimpl ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
+  rjmp op_unimpl ; [v3] input_stream number
+  rjmp op_unimpl ; [v5] sound_effect number effect volume routine
+  rjmp op_unimpl ; [v4] read_char 1 time routine -> (result)
+  rjmp op_unimpl ; [v4] scan_table x table len form -> (result)
+  rjmp op_unimpl ; [v5] not value -> (result)
+  rjmp op_unimpl ; [v5] call_vn routine (0..3)
+  rjmp op_unimpl ; [v5] call_vn2 routine (0..7)
+  rjmp op_unimpl ; [v5] tokenise text parse dictionary flag
+  rjmp op_unimpl ; [v5] encode_text zscii-text length from coded-text
+  rjmp op_unimpl ; [v5] copy_table first second size
+  rjmp op_unimpl ; [v5] print_table zscii-text width height skip
+  rjmp op_unimpl ; [v5] check_arg_count argument-number
+
+
+op_unimpl:
+
+  ; flash the lights so I know what happened
+  sbi PORTB, PB0
+  cbi PORTB, PB1
+
+  ; ~500ms
+  ldi  r18, 41
+  ldi  r19, 150
+  ldi  r20, 128
+  dec  r20
+  brne PC-1
+  dec  r19
+  brne PC-3
+  dec  r18
+  brne PC-5
+
+  cbi PORTB, PB0
+  sbi PORTB, PB1
+
+  ; ~500ms
+  ldi  r18, 41
+  ldi  r19, 150
+  ldi  r20, 128
+  dec  r20
+  brne PC-1
+  dec  r19
+  brne PC-3
+  dec  r18
+  brne PC-5
+
+  rjmp op_unimpl
+
+op_call:
+
+  ; take return var and stack it, for return
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+  st -X, r16
+
+  ; close current rem read (instruction)
+  rcall ram_end
+
+  ; save current PC
+  st -X, z_pc_l
+  st -X, z_pc_h
+
+  ; save current argp
+  st -X, z_argp_l
+  st -X, z_argp_h
+
+  ; set new argp to top of stack
+  movw z_argp_l, XL
+
+  ; unpack address
+  lsl r2
+  rol r3
+
+  ; set up to read routine header
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  ; read local var count
+  rcall ram_read_byte
+
+  ; double it to get number of bytes
+  lsl r16
+
+  ; calculate new PC: start of header + 2x num locals + 1
+  movw z_pc_l, r2
+  add z_pc_l, r16
+  brcc PC+2
+  inc z_pc_h
+  adiw z_pc_l, 1
+
+  ; copy initial values into stacked local vars
+  mov r17, r16
+
+  ; location of arg1 registers (r4:r5) in RAM, so we can walk like memory
+  ldi YL, low(0x0004)
+  ldi YH, high(0x0004)
+
+op_call_set_arg:
+  ; got them all yet?
+  tst r17
+  breq op_call_args_ready
+
+  ; shift type down two (doing first, to throw away first arg which is raddr)
+  lsl r21
+  lsl r21
+  sbr r21, 0x3
+
+  ; do we have an arg
+  cpi r21, 0xc0
+  brsh op_call_default_args
+
+  ; yes, stack it
+  ld r16, Y+
+  st -X, r16
+  ld r16, Y+
+  st -X, r16
+
+  ; skip two default bytes
+  rcall ram_read_byte
+  rcall ram_read_byte
+  subi r17, 2
+
+  rjmp op_call_set_arg
+
+op_call_default_args:
+  ; fill the rest with default args
+  tst r17
+  breq op_call_args_ready
+  rcall ram_read_byte
+  st -X, r16
+  dec r17
+  rjmp op_call_default_args
+
+op_call_args_ready:
+
+  ; - PC is set
+  ; - argp is set
+  ; - args are filled
+  ; - RAM is open at PC position
+
+  rjmp decode_op
 
 
 xmodem_load_ram:
