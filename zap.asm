@@ -472,9 +472,60 @@ run_op:
 
   ijmp
 
-  ; XXX now what?
-  sbi PORTB, PB0
-  rjmp PC
+
+store_op_result:
+
+  ; take the return byte
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  tst r16
+  brne PC+4
+
+  ; var 0: push onto stack
+  st -X, r2
+  st -X, r3
+  rjmp decode_op
+
+  cpi r16, 16
+  brsh PC+8
+
+  ; var 1-15: local var
+
+  ; double for words
+  lsl r16
+
+  ; compute arg position on stack
+  movw YL, z_argp_l
+  sub YL, r16
+  sbci YH, 0
+
+  ; store it
+  st Y+, r3
+  st Y+, r2
+  rjmp decode_op
+
+  ; var 16-255: global var
+
+  ; bring back to 0
+  subi r16, 16
+
+  ; double for words. 9-bit offset, so put the high in r17
+  clr r17
+  lsl r16
+  rol r17
+
+  ; compute offset into global list
+  ldi YL, low(z_global_vars)
+  ldi YH, high(z_global_vars)
+  add YL, r16
+  adc YH, r17
+
+  ; store it
+  ld r0, Y+
+  ld r1, Y+
+  rjmp decode_op
+
 
 op_0_table:
   rjmp op_unimpl ; rtrue
