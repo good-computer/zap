@@ -123,6 +123,16 @@ main:
   ldi XL, low(z_stack_top)
   ldi XH, high(z_stack_top)
 
+  ; zero globals
+  ldi ZL, low(z_global_vars)
+  ldi ZH, high(z_global_vars)
+  clr r16
+  st Z+, r16
+  cpi ZL, low(z_global_vars+0x240)
+  brne PC-2
+  cpi ZH, high(z_global_vars+0x240)
+  brne PC-4
+
   ; load header
   clr r16
   clr r17
