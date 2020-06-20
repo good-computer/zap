@@ -224,7 +224,7 @@ decode_op:
   movw r2, r0
   rcall decode_arg
   movw r4, r0
-  rjmp prep_op
+  rjmp run_op
 
   ; ready vop lookup
   ldi ZL, low(op_v_table)
@@ -256,7 +256,7 @@ decode_op_short_done:
   ; restore type byte
   pop r21
 
-  rjmp prep_op
+  rjmp run_op
 
 decode_op_long:
   ; bottom five bits are opcode
@@ -304,7 +304,7 @@ decode_op_long:
   ; restore type byte
   pop r21
 
-  rjmp prep_op
+  rjmp run_op
 
 decode_op_short:
   ; bottom four bits are opcode
@@ -327,7 +327,7 @@ decode_op_short:
   ; ready 0op lookup
   ldi ZL, low(op_0_table)
   ldi ZH, high(op_0_table)
-  rjmp prep_op
+  rjmp run_op
 
   ; ready 1op lookup
   ldi ZL, low(op_1_table)
@@ -343,7 +343,7 @@ decode_op_short:
   ; restore type byte
   pop r21
 
-  rjmp prep_op
+  rjmp run_op
 
 
 ; take the next arg from PC
@@ -447,7 +447,7 @@ decode_byte_constant:
   ret
 
 
-prep_op:
+run_op:
 
   ; r20: opcode
   ; r21: type byte
