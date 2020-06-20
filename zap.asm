@@ -391,7 +391,7 @@ decode_variable_number:
   ret
 
   cpi r16, 16
-  brlo PC+7
+  brlo PC+8
 
   ; var 1-15: local var
 
@@ -409,8 +409,25 @@ decode_variable_number:
   ret
 
   ; var 16-255: global var
-  sbi PORTB, PB0
-  rjmp PC
+
+  ; bring back to 0
+  subi r16, 16
+
+  ; double for words. 9-bit offset, so put the high in r17
+  clr r17
+  lsl r16
+  rol r17
+
+  ; compute offset into global list
+  ldi YL, low(z_global_vars)
+  ldi YH, high(z_global_vars)
+  add YL, r16
+  adc YH, r17
+
+  ; take it
+  ld r0, Y+
+  ld r1, Y+
+  ret
 
 decode_word_constant:
   ; word constant, take two bytes
