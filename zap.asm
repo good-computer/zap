@@ -726,8 +726,10 @@ op_call_set_arg:
   sbr r21, 0x3
 
   ; do we have an arg
-  cpi r21, 0xc0
-  brsh op_call_default_args
+  mov r16, r21
+  andi r16, 0xc0
+  cpi r16, 0xc0
+  breq op_call_default_args
 
   ; yes, stack it
   ld r16, Y+
