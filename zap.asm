@@ -584,7 +584,7 @@ op_2_table:
   rjmp op_unimpl ; get_prop object property -> (result)
   rjmp op_unimpl ; get_prop_addr object property -> (result)
   rjmp op_unimpl ; get_next_prop object property -> (result)
-  rjmp op_unimpl ; add a b -> (result)
+  rjmp op_add    ; add a b -> (result)
   rjmp op_unimpl ; sub a b -> (result)
   rjmp op_unimpl ; mul a b -> (result)
   rjmp op_unimpl ; div a b -> (result)
@@ -665,6 +665,16 @@ op_unimpl:
 
   rjmp op_unimpl
 
+
+; add a b -> (result)
+op_add:
+  ; add the args
+  add r2, r4
+  adc r3, r5
+  rjmp store_op_result
+
+
+; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
 op_call:
 
   ; take return var and stack it, for return
