@@ -158,6 +158,18 @@ main:
 
 
 decode_op:
+
+  ;movw ZL, XL
+  ;ldi r16, 0x20
+  ;clr r17
+  ;rcall usart_tx_bytes_hex
+
+  ;ldi ZL, low(z_global_vars)
+  ;ldi ZH, high(z_global_vars)
+  ;ldi r16, 0x40
+  ;ldi r17, 0x2
+  ;rcall usart_tx_bytes_hex
+
   mov r16, z_pc_h
   rcall usart_tx_byte_hex
   mov r16, z_pc_l
