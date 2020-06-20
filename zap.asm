@@ -3,18 +3,19 @@
 ;.device ATmega8
 .include "m8def.inc"
 
-; xmodem receive buffer (start of page)
-.equ xr_buffer_h = high(0x0100)
-
 ; general ram buffer
-.equ ram_buffer_h = high(0x0100)
+.equ ram_buffer_h = high(0x0300)
+
+; global variable space 240 vars * 2 bytes
+; 0x0060-0x0240
+.equ z_global_vars = 0x0060
 
 ; empty stack
-.equ z_stack_top = 0x0300
+.equ z_stack_top = 0x03d0
 
 ; input buffer
-.equ input_buffer     = 0x0380
-.equ input_buffer_end = 0x03af
+.equ input_buffer     = 0x03d0
+.equ input_buffer_end = 0x03ff
 
 ; zmachine program counter
 .def z_pc_l = r24
@@ -742,7 +743,7 @@ xlr_ready:
   rcall ram_write_start
 
   ; point to receive buffer
-  ldi ZH, xr_buffer_h
+  ldi ZH, ram_buffer_h
 
 xlr_rx_packet:
 
