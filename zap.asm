@@ -518,7 +518,7 @@ op_1_table:
   rjmp op_unimpl ; remove_obj object
   rjmp op_unimpl ; print_obj object
   rjmp op_unimpl ; ret value
-  rjmp op_unimpl ; jump ?(label)
+  rjmp op_jump   ; jump ?(label)
   rjmp op_unimpl ;  print_paddr packed-address-of-string
   rjmp op_unimpl ; load (variable) -> result
   rjmp op_unimpl ; not value -> (result) [v5 call_1n routine]
@@ -638,6 +638,24 @@ op_jz:
   set
 
   rjmp branch_generic
+
+
+; jump ?(label)
+op_jump:
+  ; add offset ot PC
+  add z_pc_l, r2
+  adc z_pc_h, r3
+  sbiw z_pc_l, 2
+
+  ; close ram
+  rcall ram_end
+
+  ; reopen ram at new PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
 
 
 ; je a b ?(label)
