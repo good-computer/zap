@@ -3,12 +3,12 @@
 ;.device ATmega8
 .include "m8def.inc"
 
-; general ram buffer
-.equ ram_buffer_h = high(0x0300)
-
 ; global variable space 240 vars * 2 bytes
 ; 0x0060-0x0240
 .equ z_global_vars = 0x0060
+
+; story file header
+.equ z_header = 0x0240
 
 ; empty stack
 .equ z_stack_top = 0x03d0
@@ -126,11 +126,16 @@ main:
   ; load header
   clr r16
   clr r17
-  ldi r18, 0x40
-  rcall ram_load
+  clr r18
+  rcall ram_read_start
+  ldi ZL, low(z_header)
+  ldi ZH, high(z_header)
+  ldi r16, 0x40
+  rcall ram_read_bytes
+  rcall ram_end
 
-  clr ZL
-  ldi ZH, ram_buffer_h
+  ldi ZL, low(z_header)
+  ldi ZH, high(z_header)
   ldi r16, 0x40
   clr r17
   rcall usart_tx_bytes_hex
@@ -138,8 +143,8 @@ main:
   ; XXX fill header?
 
   ; load globals
-  lds r16, (ram_buffer_h<<8)+0xd
-  lds r17, (ram_buffer_h<<8)+0xc
+  lds r16, z_header+0xd
+  lds r17, z_header+0xc
   clr r18
   rcall ram_read_start
   ldi ZL, low(z_global_vars)
@@ -150,15 +155,9 @@ main:
   rcall ram_read_bytes
   rcall ram_end
 
-  ldi ZL, low(z_global_vars)
-  ldi ZH, high(z_global_vars)
-  ldi r16, 0x40
-  ldi r17, 0x2
-  rcall usart_tx_bytes_hex
-
   ; initialise PC
-  lds z_pc_l, (ram_buffer_h<<8)+0x7
-  lds z_pc_h, (ram_buffer_h<<8)+0x6
+  lds z_pc_l, z_header+0x7
+  lds z_pc_h, z_header+0x6
 
   ; set up to stream from PC
   movw r16, z_pc_l
@@ -1106,7 +1105,7 @@ xlr_ready:
   rcall ram_write_start
 
   ; point to receive buffer
-  ldi ZH, ram_buffer_h
+  ldi ZH, high(0x100)
 
 xlr_rx_packet:
 
@@ -1412,51 +1411,6 @@ usart_tx_bytes_hex_done:
   rcall usart_tx_byte
 
   ret
-
-
-; read from ram into general buffer
-; wraps start, read and end
-; inputs:
-;   r16:r17: location to read from
-;   r18: length
-ram_load:
-
-  ; save length
-  push r18
-
-  ; bank 0
-  clr r18
-  rcall ram_read_start
-
-  ; restore length, set up buffer and read
-  pop r16
-  clr ZL
-  ldi ZH, ram_buffer_h
-  rcall ram_read_bytes
-
-  rjmp ram_end
-
-; write from general buffer into ram
-; wraps start, read and end
-; inputs:
-;   r16:r17: location to write to
-;   r18: length
-ram_save:
-
-  ; save length
-  push r18
-
-  ; bank 0
-  clr r18
-  rcall ram_write_Start
-
-  ; restore length, set up buffer and read
-  pop r16
-  clr ZL
-  ldi ZH, ram_buffer_h
-  rcall ram_write_bytes
-
-  rjmp ram_end
 
 
 ; begin read from SRAM
