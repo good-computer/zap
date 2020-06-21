@@ -566,38 +566,38 @@ op_2_table:
   rjmp op_unimpl ; [nonexistent]
 
 op_v_table:
-  rjmp op_call   ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
-  rjmp op_storew ; storew array word-index value
-  rjmp op_unimpl ; storeb array byte-index value
-  rjmp op_unimpl ; put_prop object property value
-  rjmp op_unimpl ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
-  rjmp op_unimpl ; print_char output-character-code
-  rjmp op_unimpl ; print_num value
-  rjmp op_unimpl ; random range -> (result)
-  rjmp op_unimpl ; push value
-  rjmp op_unimpl ; pull (variable) [v6 pull stack -> (result)]
-  rjmp op_unimpl ; [v3] split_window lines
-  rjmp op_unimpl ; [v3] set_window lines
-  rjmp op_unimpl ; [v4] call_vs2 routine (0..7) -> (result)
-  rjmp op_unimpl ; [v4] erase_window window
-  rjmp op_unimpl ; [v4] erase_line value [v6 erase_line pixels]
-  rjmp op_unimpl ; [v4] set_cursor line column [v6 set_cursor line column window]
-  rjmp op_unimpl ; [v4] get_cursor array
-  rjmp op_unimpl ; [v4] set_text_style style
-  rjmp op_unimpl ; [v4] buffer_mode flag
-  rjmp op_unimpl ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
-  rjmp op_unimpl ; [v3] input_stream number
-  rjmp op_unimpl ; [v5] sound_effect number effect volume routine
-  rjmp op_unimpl ; [v4] read_char 1 time routine -> (result)
-  rjmp op_unimpl ; [v4] scan_table x table len form -> (result)
-  rjmp op_unimpl ; [v5] not value -> (result)
-  rjmp op_unimpl ; [v5] call_vn routine (0..3)
-  rjmp op_unimpl ; [v5] call_vn2 routine (0..7)
-  rjmp op_unimpl ; [v5] tokenise text parse dictionary flag
-  rjmp op_unimpl ; [v5] encode_text zscii-text length from coded-text
-  rjmp op_unimpl ; [v5] copy_table first second size
-  rjmp op_unimpl ; [v5] print_table zscii-text width height skip
-  rjmp op_unimpl ; [v5] check_arg_count argument-number
+  rjmp op_call     ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
+  rjmp op_storew   ; storew array word-index value
+  rjmp op_unimpl   ; storeb array byte-index value
+  rjmp op_put_prop ; put_prop object property value
+  rjmp op_unimpl   ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
+  rjmp op_unimpl   ; print_char output-character-code
+  rjmp op_unimpl   ; print_num value
+  rjmp op_unimpl   ; random range -> (result)
+  rjmp op_unimpl   ; push value
+  rjmp op_unimpl   ; pull (variable) [v6 pull stack -> (result)]
+  rjmp op_unimpl   ; [v3] split_window lines
+  rjmp op_unimpl   ; [v3] set_window lines
+  rjmp op_unimpl   ; [v4] call_vs2 routine (0..7) -> (result)
+  rjmp op_unimpl   ; [v4] erase_window window
+  rjmp op_unimpl   ; [v4] erase_line value [v6 erase_line pixels]
+  rjmp op_unimpl   ; [v4] set_cursor line column [v6 set_cursor line column window]
+  rjmp op_unimpl   ; [v4] get_cursor array
+  rjmp op_unimpl   ; [v4] set_text_style style
+  rjmp op_unimpl   ; [v4] buffer_mode flag
+  rjmp op_unimpl   ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
+  rjmp op_unimpl   ; [v3] input_stream number
+  rjmp op_unimpl   ; [v5] sound_effect number effect volume routine
+  rjmp op_unimpl   ; [v4] read_char 1 time routine -> (result)
+  rjmp op_unimpl   ; [v4] scan_table x table len form -> (result)
+  rjmp op_unimpl   ; [v5] not value -> (result)
+  rjmp op_unimpl   ; [v5] call_vn routine (0..3)
+  rjmp op_unimpl   ; [v5] call_vn2 routine (0..7)
+  rjmp op_unimpl   ; [v5] tokenise text parse dictionary flag
+  rjmp op_unimpl   ; [v5] encode_text zscii-text length from coded-text
+  rjmp op_unimpl   ; [v5] copy_table first second size
+  rjmp op_unimpl   ; [v5] print_table zscii-text width height skip
+  rjmp op_unimpl   ; [v5] check_arg_count argument-number
 
 
 op_unimpl:
@@ -970,6 +970,155 @@ branch_check_invert:
   sbiw z_pc_l, 2
 
   ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
+
+
+; put_prop object property value
+op_put_prop:
+
+  ; close ram
+  rcall ram_end
+
+  ; object table location
+  lds YL, z_header+0xb
+  lds YH, z_header+0xa
+
+  ; skip 31 words of property defaults table
+  adiw YL, 62
+
+  ; objects number from 1, so subtract to number from 0
+  dec r2
+
+  ; 9 bytes per object, so multiply to make byte offset
+  movw r16, r2
+
+  ; shift right for x8
+  lsl r16
+  rol r17
+  lsl r16
+  rol r17
+  lsl r16
+  rol r17
+
+  ; then add for x9
+  add r16, r2
+  adc r17, r3
+
+  ; add to object table location
+  add YL, r16
+  add YH, r17
+
+  ; add 7 bytes for property pointer
+  adiw YL, 7
+
+  ; open ram at object property pointer
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read property pointer
+  rcall ram_read_pair
+  mov YL, r17
+  mov YH, r16
+
+  ; close ram again
+  rcall ram_end
+
+  ; open for read at start of property table
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; get short name length
+  rcall ram_read_byte
+  adiw YL, 1
+
+  ; its a word count
+  lsl r16
+
+prop_next:
+  ; add to position
+  add YL, r16
+  brcc PC+2
+  inc YH
+
+  ; advance past it (could just reset ram position, but its only a few bytes)
+  mov r17, r16
+  tst r17
+  breq PC+4
+  rcall ram_read_byte
+  dec r17
+  rjmp PC-4
+
+  ; now searching for the named property, in r4
+
+  ; size byte
+  rcall ram_read_byte
+  adiw YL, 1
+
+  tst r16
+  brne PC+2
+
+  ; not found, but the spec says it has to be here, so its quite ok to just abort
+  rjmp fatal
+
+  ; this byte is two things!
+  mov r17, r16
+
+  ; top three bits are length-1
+  andi r16, 0xe0
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  inc r16
+
+  ; bottom five bits are property number
+  andi r17, 0x1f
+
+  ; did we find it? if not, loop to advance #r16 and retry
+  cp r17, r4
+  brne prop_next
+
+  ; put the length aside
+  push r16
+
+  ; close ram
+  rcall ram_end
+
+  ; prep for write
+  movw r16, YL
+  clr r18
+  rcall ram_write_start
+
+  ; get the length back
+  pop r17
+
+  ; should be two bytes
+  cpi r17, 2
+  brne PC+4
+
+  mov r16, r7
+  rcall ram_write_byte
+  dec r17
+
+  ; but might be one byte, so just store the low byte
+  cpi r17, 1
+  brne PC+4
+
+  mov r16, r6
+  rcall ram_write_byte
+  dec r17
+
+  ; all written (or not, for any other lengths, behaviour is undefined, so we do nothing)
+  rcall ram_end
+
+  ; reset ram to PC
   movw r16, z_pc_l
   clr r18
   rcall ram_read_start
