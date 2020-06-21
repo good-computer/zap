@@ -991,34 +991,9 @@ op_put_prop:
   ; close ram
   rcall ram_end
 
-  ; object table location
-  lds YL, z_header+0xb
-  lds YH, z_header+0xa
-
-  ; skip 31 words of property defaults table
-  adiw YL, 62
-
-  ; objects number from 1, so subtract to number from 0
-  dec r2
-
-  ; 9 bytes per object, so multiply to make byte offset
-  movw r16, r2
-
-  ; shift right for x8
-  lsl r16
-  rol r17
-  lsl r16
-  rol r17
-  lsl r16
-  rol r17
-
-  ; then add for x9
-  add r16, r2
-  adc r17, r3
-
-  ; add to object table location
-  add YL, r16
-  add YH, r17
+  ; get the object pointer
+  mov r16, r2
+  rcall get_object_pointer
 
   ; add 7 bytes for property pointer
   adiw YL, 7
@@ -1198,6 +1173,50 @@ fatal:
   ldi r16, (1<<WDE)
   out WDTCR, r16
   rjmp PC
+
+
+; get pointer to start of object
+; inputs:
+;   r16: object number
+; outputs:
+;   Y: location of start of object
+get_object_pointer:
+
+  ; object table location
+  lds YL, z_header+0xb
+  lds YH, z_header+0xa
+
+  ; skip 31 words of property defaults table
+  adiw YL, 62
+
+  ; objects number from 1, so subtract to number from 0
+  dec r16
+
+  ; clear high byte
+  clr r17
+
+  ; copy so we can add it back later
+  movw r18, r16
+
+  ; 9 bytes per object, so multiply to make byte offset
+
+  ; shift right for x8
+  lsl r16
+  rol r17
+  lsl r16
+  rol r17
+  lsl r16
+  rol r17
+
+  ; then add for x9
+  add r16, r18
+  adc r17, r19
+
+  ; add to object table location
+  add YL, r16
+  add YH, r17
+
+  ret
 
 
 xmodem_load_ram:
