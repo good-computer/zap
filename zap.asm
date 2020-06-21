@@ -532,38 +532,38 @@ op_1_table:
   rjmp op_unimpl ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
-  rjmp op_unimpl ; [nonexistent]
-  rjmp op_je     ; je a b ?(label)
-  rjmp op_unimpl ; jl a b ?(label)
-  rjmp op_unimpl ; jg a b ?(label)
-  rjmp op_unimpl ; dec_chk (variable) value ?(label)
-  rjmp op_unimpl ; inc_chk (variable) value ?(label)
-  rjmp op_unimpl ; jin obj1 obj2 ?(label)
-  rjmp op_unimpl ; test bitmap flags ?(label)
-  rjmp op_unimpl ; or a b -> (result)
-  rjmp op_unimpl ; and a b -> (result)
-  rjmp op_unimpl ; test_attr object attribute ?(label)
-  rjmp op_unimpl ; set_attr object attribute
-  rjmp op_unimpl ; clear_attr object attribute
-  rjmp op_store  ; store (variable) value
-  rjmp op_unimpl ; insert_obj object destination
-  rjmp op_loadw  ; loadw array word-index -> (result)
-  rjmp op_unimpl ; loadb array byte-index -> (result)
-  rjmp op_unimpl ; get_prop object property -> (result)
-  rjmp op_unimpl ; get_prop_addr object property -> (result)
-  rjmp op_unimpl ; get_next_prop object property -> (result)
-  rjmp op_add    ; add a b -> (result)
-  rjmp op_sub    ; sub a b -> (result)
-  rjmp op_unimpl ; mul a b -> (result)
-  rjmp op_unimpl ; div a b -> (result)
-  rjmp op_unimpl ; mod a b -> (result)
-  rjmp op_unimpl ; [v4] call_2s routine arg1 -> (result)
-  rjmp op_unimpl ; [v5] call_2n routine arg1
-  rjmp op_unimpl ; [v5] set_colour foreground background [v6 set_colour foreground background window]
-  rjmp op_unimpl ; [v5] throw value stack-frame
-  rjmp op_unimpl ; [nonexistent]
-  rjmp op_unimpl ; [nonexistent]
-  rjmp op_unimpl ; [nonexistent]
+  rjmp op_unimpl    ; [nonexistent]
+  rjmp op_je        ; je a b ?(label)
+  rjmp op_unimpl    ; jl a b ?(label)
+  rjmp op_unimpl    ; jg a b ?(label)
+  rjmp op_unimpl    ; dec_chk (variable) value ?(label)
+  rjmp op_unimpl    ; inc_chk (variable) value ?(label)
+  rjmp op_unimpl    ; jin obj1 obj2 ?(label)
+  rjmp op_unimpl    ; test bitmap flags ?(label)
+  rjmp op_unimpl    ; or a b -> (result)
+  rjmp op_unimpl    ; and a b -> (result)
+  rjmp op_test_attr ; test_attr object attribute ?(label)
+  rjmp op_unimpl    ; set_attr object attribute
+  rjmp op_unimpl    ; clear_attr object attribute
+  rjmp op_store     ; store (variable) value
+  rjmp op_unimpl    ; insert_obj object destination
+  rjmp op_loadw     ; loadw array word-index -> (result)
+  rjmp op_unimpl    ; loadb array byte-index -> (result)
+  rjmp op_unimpl    ; get_prop object property -> (result)
+  rjmp op_unimpl    ; get_prop_addr object property -> (result)
+  rjmp op_unimpl    ; get_next_prop object property -> (result)
+  rjmp op_add       ; add a b -> (result)
+  rjmp op_sub       ; sub a b -> (result)
+  rjmp op_unimpl    ; mul a b -> (result)
+  rjmp op_unimpl    ; div a b -> (result)
+  rjmp op_unimpl    ; mod a b -> (result)
+  rjmp op_unimpl    ; [v4] call_2s routine arg1 -> (result)
+  rjmp op_unimpl    ; [v5] call_2n routine arg1
+  rjmp op_unimpl    ; [v5] set_colour foreground background [v6 set_colour foreground background window]
+  rjmp op_unimpl    ; [v5] throw value stack-frame
+  rjmp op_unimpl    ; [nonexistent]
+  rjmp op_unimpl    ; [nonexistent]
+  rjmp op_unimpl    ; [nonexistent]
 
 op_v_table:
   rjmp op_call     ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
@@ -703,6 +703,59 @@ op_je:
   set
   breq PC+2
   clt
+  rjmp branch_generic
+
+
+; test_attr object attribute ?(label)
+op_test_attr:
+
+  ; close ram
+  rcall ram_end
+
+  ; get the object pointer
+  mov r16, r2
+  rcall get_object_pointer
+
+  ; skip attribute bytes until we get to the right one
+  mov r16, r4
+
+  cpi r16, 8
+  brlo PC+4
+  adiw YL, 1
+  subi r16, 8
+  rjmp PC-4
+
+  ; save bit count
+  push r16
+
+  ; open ram at attribute position
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read the single byte
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; get bit count back
+  pop r17
+
+  ; shift bits until we get to the right one
+  tst r17
+  breq PC+4
+  lsl r16
+  dec r17
+  rjmp PC-4
+
+  ; attribute now in top bit, move to T
+  bst r16, 7
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
   rjmp branch_generic
 
 
