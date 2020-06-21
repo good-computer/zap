@@ -123,16 +123,6 @@ main:
   ldi XL, low(z_stack_top)
   ldi XH, high(z_stack_top)
 
-  ; zero globals
-  ldi ZL, low(z_global_vars)
-  ldi ZH, high(z_global_vars)
-  clr r16
-  st Z+, r16
-  cpi ZL, low(z_global_vars+0x240)
-  brne PC-2
-  cpi ZH, high(z_global_vars+0x240)
-  brne PC-4
-
   ; load header
   clr r16
   clr r17
@@ -146,6 +136,25 @@ main:
   rcall usart_tx_bytes_hex
 
   ; XXX fill header?
+
+  ; load globals
+  lds r16, (ram_buffer_h<<8)+0xd
+  lds r17, (ram_buffer_h<<8)+0xc
+  clr r18
+  rcall ram_read_start
+  ldi ZL, low(z_global_vars)
+  ldi ZH, high(z_global_vars)
+  clr r16
+  rcall ram_read_bytes
+  ldi r16, 0xe0
+  rcall ram_read_bytes
+  rcall ram_end
+
+  ldi ZL, low(z_global_vars)
+  ldi ZH, high(z_global_vars)
+  ldi r16, 0x40
+  ldi r17, 0x2
+  rcall usart_tx_bytes_hex
 
   ; initialise PC
   lds z_pc_l, (ram_buffer_h<<8)+0x7
