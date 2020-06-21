@@ -545,7 +545,7 @@ op_2_table:
   rjmp op_unimpl ; test_attr object attribute ?(label)
   rjmp op_unimpl ; set_attr object attribute
   rjmp op_unimpl ; clear_attr object attribute
-  rjmp op_unimpl ; store (variable) value
+  rjmp op_store  ; store (variable) value
   rjmp op_unimpl ; insert_obj object destination
   rjmp op_loadw  ; loadw array word-index -> (result)
   rjmp op_unimpl ; loadb array byte-index -> (result)
@@ -704,6 +704,14 @@ op_je:
   breq PC+2
   clt
   rjmp branch_generic
+
+
+; store (variable) value
+op_store:
+
+  mov r16, r2
+  movw r4, r2
+  rjmp store_op_result_at
 
 
 ; loadw array word-index -> (result)
