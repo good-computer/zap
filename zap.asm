@@ -205,8 +205,8 @@ decode_op:
   brpl decode_op_long
 
   ; 10xxxxxx: "short" op
-  bst r16, 6
-  brtc decode_op_short
+  sbrs r16, 6
+  rjmp decode_op_short
 
   ; 11axxxxx: "variable" op
 
@@ -246,20 +246,32 @@ decode_op:
   push r21
 
   ; vop, take up to four
-  cpi r21, 0xc0
-  brsh decode_op_short_done
+  ; XXX loop and write to ramregs?
+  mov r16, r21
+  andi r16, 0xc0
+  cpi r16, 0xc0
+  breq decode_op_short_done
   rcall decode_arg
   movw r2, r0
-  cpi r21, 0xc0
-  brsh decode_op_short_done
+
+  mov r16, r21
+  andi r16, 0xc0
+  cpi r16, 0xc0
+  breq decode_op_short_done
   rcall decode_arg
   movw r4, r0
-  cpi r21, 0xc0
-  brsh decode_op_short_done
+
+  mov r16, r21
+  andi r16, 0xc0
+  cpi r16, 0xc0
+  breq decode_op_short_done
   rcall decode_arg
   movw r6, r0
-  cpi r21, 0xc0
-  brsh decode_op_short_done
+
+  mov r16, r21
+  andi r16, 0xc0
+  cpi r16, 0xc0
+  breq decode_op_short_done
   rcall decode_arg
   movw r8, r0
 
@@ -333,8 +345,10 @@ decode_op_short:
   mov r21, r16
 
   ; test first arg, none=0op, something=1op
+  mov r16, r21
+  andi r16, 0xc0
   cpi r16, 0xc0
-  brsh PC+4
+  brne PC+4
 
   ; ready 0op lookup
   ldi ZL, low(op_0_table)
