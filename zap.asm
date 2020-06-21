@@ -1033,6 +1033,16 @@ store_op_result_at:
   rjmp decode_op
 
 
+fatal:
+  ; XXX dump PC and stack here maybe?
+
+  ; enable watchdog timer to force reset in ~16ms
+  cli
+  ldi r16, (1<<WDE)
+  out WDTCR, r16
+  rjmp PC
+
+
 xmodem_load_ram:
 
   ; error indicator off
