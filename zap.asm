@@ -419,7 +419,7 @@ decode_variable_number:
   tst r16
   brne PC+4
 
-  ; var 0: take top of stack
+  ; var 0: take top of stack (taking high byte first)
   ld r1, X+
   ld r0, X+
   ret
@@ -437,7 +437,7 @@ decode_variable_number:
   sub YL, r16
   sbci YH, 0
 
-  ; take it
+  ; take it (high byte first)
   ld r1, Y+
   ld r0, Y+
   ret
@@ -458,9 +458,9 @@ decode_variable_number:
   add YL, r16
   adc YH, r17
 
-  ; take it
-  ld r0, Y+
+  ; take it (z order, so high byte first)
   ld r1, Y+
+  ld r0, Y+
   ret
 
 decode_word_constant:
@@ -475,8 +475,8 @@ decode_word_constant:
 decode_byte_constant:
   ; byte constant, take one byte
   rcall ram_read_byte
-  mov r1, r16
-  clr r0
+  mov r0, r16
+  clr r1
   adiw z_pc_l, 1
   ret
 
@@ -823,7 +823,7 @@ op_call_set_arg:
   cpi r16, 0xc0
   breq op_call_default_args
 
-  ; yes, stack it
+  ; yes, stack it (pushing low byte first)
   ld r16, Y+
   st -X, r16
   ld r16, Y+
@@ -988,7 +988,7 @@ store_op_result_at:
   tst r16
   brne PC+4
 
-  ; var 0: push onto stack
+  ; var 0: push onto stack (low byte first)
   st -X, r2
   st -X, r3
   rjmp decode_op
@@ -1006,7 +1006,7 @@ store_op_result_at:
   sub YL, r16
   sbci YH, 0
 
-  ; store it
+  ; store it (high byte first)
   st Y+, r3
   st Y+, r2
   rjmp decode_op
@@ -1027,9 +1027,9 @@ store_op_result_at:
   add YL, r16
   adc YH, r17
 
-  ; store it
-  ld r0, Y+
-  ld r1, Y+
+  ; store it (z order, high first)
+  st Y+, r1
+  st Y+, r0
   rjmp decode_op
 
 
