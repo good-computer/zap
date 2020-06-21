@@ -559,7 +559,7 @@ op_2_table:
 
 op_v_table:
   rjmp op_call   ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
-  rjmp op_unimpl ; storew array word-index value
+  rjmp op_storew ; storew array word-index value
   rjmp op_unimpl ; storeb array byte-index value
   rjmp op_unimpl ; put_prop object property value
   rjmp op_unimpl ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
@@ -816,6 +816,40 @@ op_call_args_ready:
   ; - args are filled
   ; - RAM is open at PC position
 
+  rjmp decode_op
+
+
+; storew array word-index value
+op_storew:
+
+  ; compute array index address
+  lsr r4
+  ror r5
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram for write at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_write_start
+
+  ; write value
+  mov r16, r7
+  mov r17, r6
+  rcall ram_write_pair
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done!
   rjmp decode_op
 
 
