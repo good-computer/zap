@@ -492,7 +492,7 @@ op_0_table:
   rjmp op_unimpl ; [v5] piracy ?(label)
 
 op_1_table:
-  rjmp op_unimpl ; jz a ?(label)
+  rjmp op_jz     ; jz a ?(label)
   rjmp op_unimpl ; get_sibling object -> (result) ?(label)
   rjmp op_unimpl ; get_child object -> (result) ?(label)
   rjmp op_unimpl ; get_parent object -> (result)
@@ -610,6 +610,20 @@ op_unimpl:
   brne PC-5
 
   rjmp op_unimpl
+
+
+; jz a ?(label)
+op_jz:
+  clt
+
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+
+  set
+
+  rjmp branch_generic
 
 
 ; je a b ?(label)
