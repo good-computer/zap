@@ -565,7 +565,7 @@ op_1_table:
 
 op_2_table:
   rjmp op_unimpl ; [nonexistent]
-  rjmp op_unimpl ; je a b ?(label)
+  rjmp op_je     ; je a b ?(label)
   rjmp op_unimpl ; jl a b ?(label)
   rjmp op_unimpl ; jg a b ?(label)
   rjmp op_unimpl ; dec_chk (variable) value ?(label)
@@ -664,6 +664,100 @@ op_unimpl:
   brne PC-5
 
   rjmp op_unimpl
+
+
+; je a b ?(label)
+op_je:
+
+  ; get branch arg
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  ; bottom six bits are the low part of the offset
+  mov r18, r16
+  andi r18, 0x3f
+
+  ; high part is zero
+  clr r19
+
+  ; bit 6 clear means there's an extra offset byte
+  bst r16, 6
+  brts op_je_check_invert
+
+  ; save first byte, it has our invert bit in it still
+  push r16
+
+  ; get next byte
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  ; bring bottom two bits into top two bits of low offset (erk)
+  lsr r16
+  ror r19
+  lsr r16
+  ror r19
+  or r18, r19
+
+  ; remaining six bits to high byte off offset
+  mov r19, r16
+
+  ; bring back first byte
+  pop r16
+
+op_je_check_invert:
+
+  ; stash invert bit
+  bst r16, 7
+
+  ; compare
+  cp r2, r4
+  cpc r3, r5
+
+  ; if invert bit is true, branch if not equal
+  brts PC+3
+
+  ; equality test
+  breq PC+4
+  rjmp decode_op
+
+  ; inequality test
+  brne PC+2
+  rjmp decode_op
+
+  ; branch take, reset PC
+
+  ; close ram
+  rcall ram_end
+
+  ; XXX consider "fast return" cases
+  tst r19
+  brne PC+9
+
+  tst r18
+  brne PC+3
+
+  ; 0, return false
+  sbi PORTB, PB0
+  rjmp PC
+
+  cpi r18, 1
+  brne PC+3
+
+  ; 1, return true
+  sbi PORTB, PB0
+  rjmp PC
+
+  ; add offset to PC
+  add z_pc_l, r18
+  adc z_pc_h, r19
+  sbiw z_pc_l, 2
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
 
 
 ; add a b -> (result)
