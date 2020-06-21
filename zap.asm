@@ -517,7 +517,7 @@ op_1_table:
   rjmp op_unimpl ; [v4] call_1s routine -> (result)
   rjmp op_unimpl ; remove_obj object
   rjmp op_unimpl ; print_obj object
-  rjmp op_unimpl ; ret value
+  rjmp op_ret    ; ret value
   rjmp op_jump   ; jump ?(label)
   rjmp op_unimpl ;  print_paddr packed-address-of-string
   rjmp op_unimpl ; load (variable) -> result
@@ -638,6 +638,34 @@ op_jz:
   set
 
   rjmp branch_generic
+
+
+; ret value
+op_ret:
+
+  ; close ram
+  rcall ram_end
+
+  ; move SP back to before args
+  movw XL, z_argp_l
+
+  ; restore previous argp
+  ld z_argp_h, X+
+  ld z_argp_l, X+
+
+  ; restore previous PC
+  ld z_pc_h, X+
+  ld z_pc_l, X+
+
+  ; reopen ram at restored PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; get return var
+  ld r16, X+
+
+  rjmp store_op_result_at
 
 
 ; jump ?(label)
@@ -947,6 +975,8 @@ store_op_result:
   rcall ram_read_byte
   adiw z_pc_l, 1
 
+; secondary entry with r16 already set to var (see op_ret)
+store_op_result_at:
   tst r16
   brne PC+4
 
