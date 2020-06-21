@@ -341,7 +341,7 @@ decode_op_long:
 decode_op_short:
   ; bottom four bits are opcode
   mov r20, r16
-  ldi r17, 0x1f
+  ldi r17, 0xf
   and r20, r17
 
   ; 1op (or 0op), type in bits 4 & 5, shift up to 6 & 7
