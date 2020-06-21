@@ -525,7 +525,7 @@ op_2_table:
   rjmp op_unimpl ; clear_attr object attribute
   rjmp op_unimpl ; store (variable) value
   rjmp op_unimpl ; insert_obj object destination
-  rjmp op_unimpl ; loadw array word-index -> (result)
+  rjmp op_loadw  ; loadw array word-index -> (result)
   rjmp op_unimpl ; loadb array byte-index -> (result)
   rjmp op_unimpl ; get_prop object property -> (result)
   rjmp op_unimpl ; get_prop_addr object property -> (result)
@@ -636,6 +636,40 @@ op_je:
   breq PC+2
   clt
   rjmp branch_generic
+
+
+; loadw array word-index -> (result)
+op_loadw:
+
+  ; compute array index address
+  lsr r4
+  ror r5
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  ; get value
+  rcall ram_read_pair
+  mov r3, r16
+  mov r2, r17
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done, store value
+  rjmp store_op_result
 
 
 ; add a b -> (result)
