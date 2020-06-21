@@ -220,8 +220,7 @@ decode_op:
 
   ; bottom five bits are opcode
   mov r20, r16
-  ldi r17, 0x1f
-  and r20, r17
+  andi r20, 0x1f
 
   ; take optype bit
   bst r16, 5
@@ -229,7 +228,6 @@ decode_op:
   ; type byte follows
   rcall ram_read_byte
   adiw z_pc_l, 1
-
   mov r21, r16
 
   ; bit 5 clear=2op, set=vop
@@ -293,32 +291,28 @@ decode_op_short_done:
 decode_op_long:
   ; bottom five bits are opcode
   mov r20, r16
-  ldi r17, 0x1f
-  and r20, r17
+  andi r20, 0x1f
 
   ; this is a 2op, so %11 for bottom two args
-  ldi r17, 0xf
+  ldi r21, 0xf
 
   ; type bit for first arg
   bst r16, 6
   brts PC+3
   ; %0 -> %01 (byte constant)
-  sbr r17, 0x40
+  sbr r21, 0x40
   rjmp PC+2
   ; %1 -> %10 (variable number)
-  sbr r17, 0x80
+  sbr r21, 0x80
 
   ; type bit for second arg
   bst r16, 5
   brts PC+3
   ; %0 -> %01 (byte constant)
-  sbr r17, 0x10
+  sbr r21, 0x10
   rjmp PC+2
   ; %1 -> %10 (variable number)
-  sbr r17, 0x20
-
-  ; move final type byte into place
-  mov r21, r17
+  sbr r21, 0x20
 
   ; save type byte
   push r21
@@ -341,8 +335,7 @@ decode_op_long:
 decode_op_short:
   ; bottom four bits are opcode
   mov r20, r16
-  ldi r17, 0xf
-  and r20, r17
+  andi r20, 0xf
 
   ; 1op (or 0op), type in bits 4 & 5, shift up to 6 & 7
   lsl r16
@@ -353,7 +346,6 @@ decode_op_short:
   mov r21, r16
 
   ; test first arg, none=0op, something=1op
-  mov r16, r21
   andi r16, 0xc0
   cpi r16, 0xc0
   brne PC+4
