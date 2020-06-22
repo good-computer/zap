@@ -487,7 +487,7 @@ run_op:
 op_0_table:
   rjmp op_unimpl ; rtrue
   rjmp op_unimpl ; rfalse
-  rjmp op_unimpl ; print (literal_string)
+  rjmp op_print  ; print (literal_string)
   rjmp op_unimpl ; print_ret (literal-string)
   rjmp op_unimpl ; nop
   rjmp op_unimpl ; save ?(label) [v4 save -> (result)] [v5 illegal]
@@ -621,6 +621,147 @@ op_unimpl:
   brne PC-5
 
   rjmp op_unimpl
+
+
+; print (literal_string)
+op_print:
+
+  ; reset lock alphabet to A0
+  clr r2
+
+  ; reset current alphabet to A0
+  clr r3
+
+next_zchar_word:
+  ; read the word
+  rcall ram_read_pair
+  adiw z_pc_l, 2
+  movw r20, r16
+
+  ; save the last-word marker
+  bst r20, 7
+
+  ; and shift it off
+  lsl r21
+  rol r20
+
+  ; three zchars to do
+  ldi r19, 3
+
+next_zchar:
+  ; shift five bits into r16
+  clr r16
+  lsl r21
+  rol r20
+  rol r16
+  lsl r21
+  rol r20
+  rol r16
+  lsl r21
+  rol r20
+  rol r16
+  lsl r21
+  rol r20
+  rol r16
+  lsl r21
+  rol r20
+  rol r16
+
+  ; decode!
+  cpi r16, 6
+  brsh print_zchar
+
+  ; handle control char
+  ; XXX might this benefit from being a jump table?
+  tst r16
+  brne PC+4
+
+  ; 0: space
+  ldi r16, ' '
+  rcall usart_tx_byte
+  rjmp done_zchar
+
+  cpi r16, 1
+  brne PC+3
+
+  ; 1: newline
+  rcall usart_newline
+  rjmp done_zchar
+
+  ; 2-5: change alphabets
+
+  ; 2 010 inc current
+  ; 3 011 dec current
+  ; 4 110 inc current, set lock
+  ; 5 111 dec current, set lock
+
+  ; bit 0: clear=inc, set=dec
+  sbrc r16, 0
+  rjmp PC+3
+  inc r3
+  rjmp PC+2
+  dec r3
+
+  ; clamp r3 to 0-2 (sigh)
+  mov r17, r3
+  sbrc r17, 7
+  ldi r17, 2
+  cpi r17, 3
+  brne PC+2
+  ldi r17, 0
+  mov r3, r17
+
+  ; bit 2: if set, also set lock
+  sbrc r16, 2
+  mov r2, r3
+
+  rjmp done_zchar
+
+print_zchar:
+
+  ; compute alphabet offset
+  mov r0, r3
+  ldi r17, 26
+  mul r0, r17
+
+  ; compute pointer to start of wanted alphabet
+  ldi ZL, low(zchar_alphabet*2)
+  ldi ZH, high(zchar_alphabet*2)
+  add ZL, r0
+  brcc PC+2
+  inc ZH
+
+  ; adjust character offset
+  subi r16, 6
+
+  ; add character offset
+  add ZL, r16
+  brcc PC+2
+  inc ZH
+
+  ; load byte and print it
+  lpm r16, Z
+  rcall usart_tx_byte
+
+  ; reset to lock alphabet
+  mov r3, r2
+
+done_zchar:
+  dec r19
+  brne next_zchar
+
+  ; if this wasn't the last word, go get another!
+  brts PC+2
+  rjmp next_zchar_word
+
+  rjmp decode_op
+
+; alphabets, 26 chars each
+zchar_alphabet:
+  .db "abcdefghijklmnopqrstuvwxyz"
+  .db "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  .db " 0123456789.,!?_#'" ; avra's string parsing is buggy as shit
+    .db 0x22, "/\<-:()"
 
 
 ; jz a ?(label)
