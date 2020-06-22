@@ -563,38 +563,38 @@ op_2_table:
   rjmp unimpl       ; [nonexistent]
 
 op_v_table:
-  rjmp op_call      ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
-  rjmp op_storew    ; storew array word-index value
-  rjmp unimpl       ; storeb array byte-index value
-  rjmp op_put_prop  ; put_prop object property value
-  rjmp unimpl       ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
-  rjmp unimpl       ; print_char output-character-code
-  rjmp op_print_num ; print_num value
-  rjmp unimpl       ; random range -> (result)
-  rjmp unimpl       ; push value
-  rjmp unimpl       ; pull (variable) [v6 pull stack -> (result)]
-  rjmp unimpl       ; [v3] split_window lines
-  rjmp unimpl       ; [v3] set_window lines
-  rjmp unimpl       ; [v4] call_vs2 routine (0..7) -> (result)
-  rjmp unimpl       ; [v4] erase_window window
-  rjmp unimpl       ; [v4] erase_line value [v6 erase_line pixels]
-  rjmp unimpl       ; [v4] set_cursor line column [v6 set_cursor line column window]
-  rjmp unimpl       ; [v4] get_cursor array
-  rjmp unimpl       ; [v4] set_text_style style
-  rjmp unimpl       ; [v4] buffer_mode flag
-  rjmp unimpl       ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
-  rjmp unimpl       ; [v3] input_stream number
-  rjmp unimpl       ; [v5] sound_effect number effect volume routine
-  rjmp unimpl       ; [v4] read_char 1 time routine -> (result)
-  rjmp unimpl       ; [v4] scan_table x table len form -> (result)
-  rjmp unimpl       ; [v5] not value -> (result)
-  rjmp unimpl       ; [v5] call_vn routine (0..3)
-  rjmp unimpl       ; [v5] call_vn2 routine (0..7)
-  rjmp unimpl       ; [v5] tokenise text parse dictionary flag
-  rjmp unimpl       ; [v5] encode_text zscii-text length from coded-text
-  rjmp unimpl       ; [v5] copy_table first second size
-  rjmp unimpl       ; [v5] print_table zscii-text width height skip
-  rjmp unimpl       ; [v5] check_arg_count argument-number
+  rjmp op_call       ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
+  rjmp op_storew     ; storew array word-index value
+  rjmp unimpl        ; storeb array byte-index value
+  rjmp op_put_prop   ; put_prop object property value
+  rjmp unimpl        ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
+  rjmp op_print_char ; print_char output-character-code
+  rjmp op_print_num  ; print_num value
+  rjmp unimpl        ; random range -> (result)
+  rjmp unimpl        ; push value
+  rjmp unimpl        ; pull (variable) [v6 pull stack -> (result)]
+  rjmp unimpl        ; [v3] split_window lines
+  rjmp unimpl        ; [v3] set_window lines
+  rjmp unimpl        ; [v4] call_vs2 routine (0..7) -> (result)
+  rjmp unimpl        ; [v4] erase_window window
+  rjmp unimpl        ; [v4] erase_line value [v6 erase_line pixels]
+  rjmp unimpl        ; [v4] set_cursor line column [v6 set_cursor line column window]
+  rjmp unimpl        ; [v4] get_cursor array
+  rjmp unimpl        ; [v4] set_text_style style
+  rjmp unimpl        ; [v4] buffer_mode flag
+  rjmp unimpl        ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
+  rjmp unimpl        ; [v3] input_stream number
+  rjmp unimpl        ; [v5] sound_effect number effect volume routine
+  rjmp unimpl        ; [v4] read_char 1 time routine -> (result)
+  rjmp unimpl        ; [v4] scan_table x table len form -> (result)
+  rjmp unimpl        ; [v5] not value -> (result)
+  rjmp unimpl        ; [v5] call_vn routine (0..3)
+  rjmp unimpl        ; [v5] call_vn2 routine (0..7)
+  rjmp unimpl        ; [v5] tokenise text parse dictionary flag
+  rjmp unimpl        ; [v5] encode_text zscii-text length from coded-text
+  rjmp unimpl        ; [v5] copy_table first second size
+  rjmp unimpl        ; [v5] print_table zscii-text width height skip
+  rjmp unimpl        ; [v5] check_arg_count argument-number
 
 
 ; print (literal_string)
@@ -1394,6 +1394,15 @@ prop_next:
   clr r18
   rcall ram_read_start
 
+  rjmp decode_op
+
+
+; print_char output-character-code
+op_print_char:
+
+  ; XXX handle about ZSCII and high-order chars
+  mov r16, r2
+  rcall usart_tx_byte
   rjmp decode_op
 
 
