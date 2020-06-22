@@ -534,7 +534,7 @@ op_2_table:
   rjmp unimpl       ; jl a b ?(label)
   rjmp unimpl       ; jg a b ?(label)
   rjmp unimpl       ; dec_chk (variable) value ?(label)
-  rjmp unimpl       ; inc_chk (variable) value ?(label)
+  rjmp op_inc_chk   ; inc_chk (variable) value ?(label)
   rjmp unimpl       ; jin obj1 obj2 ?(label)
   rjmp unimpl       ; test bitmap flags ?(label)
   rjmp unimpl       ; or a b -> (result)
@@ -807,6 +807,93 @@ op_je:
   set
   breq PC+2
   clt
+  rjmp branch_generic
+
+
+; inc_chk (variable) value ?(label)
+op_inc_chk:
+
+  ; XXX lift/reuse this, shared with variable arg load and op store
+
+  mov r16, r2
+
+  ; XXX assuming that var 0 (top of stack) is impossible here
+
+  cpi r16, 16
+  brsh inc_chk_global
+
+  ; var 1-15: local var
+
+  ; double for words
+  lsl r16
+
+  ; compute arg position on stack
+  movw YL, z_argp_l
+  sub YL, r16
+  sbci YH, 0
+
+  ; load value (stack order, load low first)
+  ld ZL, Y+
+  ld ZH, Y+
+
+  ; inc
+  adiw ZL, 1
+
+  ; move pointer back
+  sbiw YL, 2
+
+  ; and store (stack order, store low first)
+  st Y+, ZL
+  st Y+, ZH
+
+  ; save for compare
+  movw r2, ZL
+
+  rjmp inc_chk_compare
+
+inc_chk_global:
+
+  ; var 16-255: global var
+
+  ; bring back to 0
+  subi r16, 16
+
+  ; double for words. 9-bit offset, so put the high in r17
+  clr r17
+  lsl r16
+  rol r17
+
+  ; compute offset into global list
+  ldi YL, low(z_global_vars)
+  ldi YH, high(z_global_vars)
+  add YL, r16
+  adc YH, r17
+
+  ; load value (z order, load high first)
+  ld ZH, Y+
+  ld ZL, Y+
+
+  ; inc
+  adiw ZL, 1
+
+  ; move pointer back
+  sbiw YL, 2
+
+  ; and store (z order, store high first)
+  st Y+, ZH
+  st Y+, ZL
+
+  ; save for compare
+  movw r2, ZL
+
+inc_chk_compare:
+  ; compare backwards, for less-than
+  cp r4, r2
+  cpc r5, r3
+
+  clt
+  brsh PC+2
+  set
   rjmp branch_generic
 
 
