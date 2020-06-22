@@ -412,53 +412,7 @@ decode_variable_number:
   ; variable number
   rcall ram_read_byte
   adiw z_pc_l, 1
-
-  tst r16
-  brne PC+4
-
-  ; var 0: take top of stack (stack order, pop low first)
-  ld r0, X+
-  ld r1, X+
-  ret
-
-  cpi r16, 16
-  brsh PC+8
-
-  ; var 1-15: local var
-
-  ; double for words
-  lsl r16
-
-  ; compute arg position on stack
-  movw YL, z_argp_l
-  sub YL, r16
-  sbci YH, 0
-
-  ; take it (stack order, pop low first)
-  ld r0, Y+
-  ld r1, Y+
-  ret
-
-  ; var 16-255: global var
-
-  ; bring back to 0
-  subi r16, 16
-
-  ; double for words. 9-bit offset, so put the high in r17
-  clr r17
-  lsl r16
-  rol r17
-
-  ; compute offset into global list
-  ldi YL, low(z_global_vars)
-  ldi YH, high(z_global_vars)
-  add YL, r16
-  adc YH, r17
-
-  ; take it (z order, so high byte first)
-  ld r1, Y+
-  ld r0, Y+
-  ret
+  rjmp load_variable
 
 decode_word_constant:
   ; word constant, take two bytes
@@ -802,7 +756,11 @@ op_ret:
   ; get return var
   ld r16, X+
 
-  rjmp store_op_result_at
+  ; store value there
+  movw r0, r2
+  rcall store_variable
+
+  rjmp decode_op
 
 
 ; jump ?(label)
@@ -838,87 +796,28 @@ op_je:
 ; inc_chk (variable) value ?(label)
 op_inc_chk:
 
-  ; XXX lift/reuse this, shared with variable arg load and op store
-
   mov r16, r2
+  rcall load_variable
 
-  ; XXX assuming that var 0 (top of stack) is impossible here
+  ; increment
+  inc r0
+  brne PC+2
+  inc r1
 
-  cpi r16, 16
-  brsh inc_chk_global
+  ; compare backwards, for less-than test
+  cp r4, r0
+  cpc r5, r1
 
-  ; var 1-15: local var
-
-  ; double for words
-  lsl r16
-
-  ; compute arg position on stack
-  movw YL, z_argp_l
-  sub YL, r16
-  sbci YH, 0
-
-  ; load value (stack order, load low first)
-  ld ZL, Y+
-  ld ZH, Y+
-
-  ; inc
-  adiw ZL, 1
-
-  ; move pointer back
-  sbiw YL, 2
-
-  ; and store (stack order, store low first)
-  st Y+, ZL
-  st Y+, ZH
-
-  ; save for compare
-  movw r2, ZL
-
-  rjmp inc_chk_compare
-
-inc_chk_global:
-
-  ; var 16-255: global var
-
-  ; bring back to 0
-  subi r16, 16
-
-  ; double for words. 9-bit offset, so put the high in r17
-  clr r17
-  lsl r16
-  rol r17
-
-  ; compute offset into global list
-  ldi YL, low(z_global_vars)
-  ldi YH, high(z_global_vars)
-  add YL, r16
-  adc YH, r17
-
-  ; load value (z order, load high first)
-  ld ZH, Y+
-  ld ZL, Y+
-
-  ; inc
-  adiw ZL, 1
-
-  ; move pointer back
-  sbiw YL, 2
-
-  ; and store (z order, store high first)
-  st Y+, ZH
-  st Y+, ZL
-
-  ; save for compare
-  movw r2, ZL
-
-inc_chk_compare:
-  ; compare backwards, for less-than
-  cp r4, r2
-  cpc r5, r3
-
+  ; set T with result
   clt
   brsh PC+2
   set
+
+  ; store value back
+  mov r16, r2
+  rcall store_variable
+
+  ; complete branch
   rjmp branch_generic
 
 
@@ -985,9 +884,14 @@ op_test_attr:
 ; store (variable) value
 op_store:
 
+  ; get variable name
   mov r16, r2
-  movw r4, r2
-  rjmp store_op_result_at
+
+  ; store value there
+  movw r0, r4
+  rcall store_variable
+
+  rjmp decode_op
 
 
 ; loadw array word-index -> (result)
@@ -1210,94 +1114,6 @@ op_storew:
   rjmp decode_op
 
 
-; common branch implementation
-; call with T set if condition was true, clear if false
-branch_generic:
-  ; get branch arg
-  rcall ram_read_byte
-  adiw z_pc_l, 1
-
-  ; bottom six bits are the low part of the offset
-  mov r18, r16
-  andi r18, 0x3f
-
-  ; high part is zero
-  clr r19
-
-  ; bit 6 clear means there's an extra offset byte
-  sbrc r16, 6
-  rjmp branch_check_invert
-
-  ; save first byte, it has our invert bit in it still
-  push r16
-
-  ; get next byte
-  rcall ram_read_byte
-  adiw z_pc_l, 1
-
-  ; bring bottom two bits into top two bits of low offset (erk)
-  lsr r16
-  ror r19
-  lsr r16
-  ror r19
-  or r18, r19
-
-  ; remaining six bits to high byte off offset
-  mov r19, r16
-
-  ; bring back first byte
-  pop r16
-
-branch_check_invert:
-
-  ; if bit 7 is set, branch if T true
-  sbrs r16, 7
-  rjmp PC+3
-
-  ; branch if condition true
-  brts PC+4
-  rjmp decode_op
-
-  ; branch if condition false
-  brtc PC+2
-  rjmp decode_op
-
-  ; branch take, reset PC
-
-  ; close ram
-  rcall ram_end
-
-  ; XXX consider "fast return" cases
-  tst r19
-  brne PC+9
-
-  tst r18
-  brne PC+3
-
-  ; 0, return false
-  sbi PORTB, PB0
-  rjmp PC
-
-  cpi r18, 1
-  brne PC+3
-
-  ; 1, return true
-  sbi PORTB, PB0
-  rjmp PC
-
-  ; add offset to PC
-  add z_pc_l, r18
-  adc z_pc_h, r19
-  sbiw z_pc_l, 2
-
-  ; reset ram
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp decode_op
-
-
 ; put_prop object property value
 op_put_prop:
 
@@ -1499,22 +1315,70 @@ decades:
   .dw 10000, 1000, 100, 10, 1
 
 
-; take output location from PC, and store r2:r3 in it
-store_op_result:
 
-  ; take the return byte
-  rcall ram_read_byte
-  adiw z_pc_l, 1
+; inputs:
+;   r16: variable number
+; outputs:
+;   r0:r1: value
+load_variable:
+  tst r16
+  brne PC+4
 
-; secondary entry with r16 already set to var (see op_ret)
-store_op_result_at:
+  ; var 0: take top of stack (stack order, pop low first)
+  ld r0, X+
+  ld r1, X+
+  ret
+
+  cpi r16, 16
+  brsh PC+8
+
+  ; var 1-15: local var
+
+  ; double for words
+  lsl r16
+
+  ; compute arg position on stack
+  movw YL, z_argp_l
+  sub YL, r16
+  sbci YH, 0
+
+  ; take it (stack order, pop low first)
+  ld r0, Y+
+  ld r1, Y+
+  ret
+
+  ; var 16-255: global var
+
+  ; bring back to 0
+  subi r16, 16
+
+  ; double for words. 9-bit offset, so put the high in r17
+  clr r17
+  lsl r16
+  rol r17
+
+  ; compute offset into global list
+  ldi YL, low(z_global_vars)
+  ldi YH, high(z_global_vars)
+  add YL, r16
+  adc YH, r17
+
+  ; take it (z order, so high byte first)
+  ld r1, Y+
+  ld r0, Y+
+  ret
+
+; inputs:
+;   r16: variable number
+;   r0:r1: value
+store_variable:
   tst r16
   brne PC+4
 
   ; var 0: push onto stack (stack order, push high first)
-  st -X, r3
-  st -X, r2
-  rjmp decode_op
+  st -X, r1
+  st -X, r0
+  ret
 
   cpi r16, 16
   brsh PC+8
@@ -1530,9 +1394,9 @@ store_op_result_at:
   sbci YH, 0
 
   ; store it (stack order, store low first)
-  st Y+, r2
-  st Y+, r3
-  rjmp decode_op
+  st Y+, r0
+  st Y+, r1
+  ret
 
   ; var 16-255: global var
 
@@ -1551,8 +1415,108 @@ store_op_result_at:
   adc YH, r17
 
   ; store it (z order, store high first)
-  st Y+, r3
-  st Y+, r2
+  st Y+, r1
+  st Y+, r0
+  ret
+
+
+; take output location from PC, and store r2:r3 in it, then jump to next op
+store_op_result:
+
+  ; take the return byte
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  movw r0, r2
+  rcall store_variable
+  rjmp decode_op
+
+
+; common branch implementation
+; call with T set if condition was true, clear if false
+branch_generic:
+  ; get branch arg
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  ; bottom six bits are the low part of the offset
+  mov r18, r16
+  andi r18, 0x3f
+
+  ; high part is zero
+  clr r19
+
+  ; bit 6 clear means there's an extra offset byte
+  sbrc r16, 6
+  rjmp branch_check_invert
+
+  ; save first byte, it has our invert bit in it still
+  push r16
+
+  ; get next byte
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
+  ; bring bottom two bits into top two bits of low offset (erk)
+  lsr r16
+  ror r19
+  lsr r16
+  ror r19
+  or r18, r19
+
+  ; remaining six bits to high byte off offset
+  mov r19, r16
+
+  ; bring back first byte
+  pop r16
+
+branch_check_invert:
+
+  ; if bit 7 is set, branch if T true
+  sbrs r16, 7
+  rjmp PC+3
+
+  ; branch if condition true
+  brts PC+4
+  rjmp decode_op
+
+  ; branch if condition false
+  brtc PC+2
+  rjmp decode_op
+
+  ; branch take, reset PC
+
+  ; close ram
+  rcall ram_end
+
+  ; XXX consider "fast return" cases
+  tst r19
+  brne PC+9
+
+  tst r18
+  brne PC+3
+
+  ; 0, return false
+  sbi PORTB, PB0
+  rjmp PC
+
+  cpi r18, 1
+  brne PC+3
+
+  ; 1, return true
+  sbi PORTB, PB0
+  rjmp PC
+
+  ; add offset to PC
+  add z_pc_l, r18
+  adc z_pc_h, r19
+  sbiw z_pc_l, 2
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
   rjmp decode_op
 
 
@@ -1659,6 +1623,7 @@ dump:
 
 dump_done:
   ret
+
 
 ; get pointer to start of object
 ; inputs:
