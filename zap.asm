@@ -1153,6 +1153,9 @@ op_put_prop:
   mov r17, r4
   rcall get_object_property_pointer
 
+  ; done reading properties
+  rcall ram_end
+
   tst r16
   brne PC+2
 
@@ -1699,6 +1702,7 @@ get_attribute_pointer:
 ; outputs:
 ;   Y: location of property value
 ;   r16: length of property (0 if not found)
+; leaves ram open for read at property value
 get_object_property_pointer:
 
   ; save property number
@@ -1784,9 +1788,6 @@ prop_next:
   ; did we find it? if not, loop to advance #r16 and retry
   cp r17, r18
   brne prop_next
-
-  ; close ram
-  rcall ram_end
 
   ; there we go
   ret
