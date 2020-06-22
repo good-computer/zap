@@ -525,8 +525,8 @@ op_v_table:
   rjmp op_print_char ; print_char output-character-code
   rjmp op_print_num  ; print_num value
   rjmp unimpl        ; random range -> (result)
-  rjmp unimpl        ; push value
-  rjmp unimpl        ; pull (variable) [v6 pull stack -> (result)]
+  rjmp op_push       ; push value
+  rjmp op_pull       ; pull (variable) [v6 pull stack -> (result)]
   rjmp unimpl        ; [v3] split_window lines
   rjmp unimpl        ; [v3] set_window lines
   rjmp unimpl        ; [v4] call_vs2 routine (0..7) -> (result)
@@ -1314,6 +1314,32 @@ format_number_loop:
 decades:
   .dw 10000, 1000, 100, 10, 1
 
+
+; push value
+op_push:
+
+  ; setup for var 0 (stack push)
+  clr r16
+
+  ; store value there
+  movw r0, r2
+  rcall store_variable
+
+  rjmp decode_op
+
+
+; pull (variable) [v6 pull stack -> (result)]
+op_pull:
+
+  ; load var 0 (stack pull)
+  clr r16
+  rcall load_variable
+
+  ; store to the named var
+  mov r16, r2
+  rcall store_variable
+
+  rjmp decode_op
 
 
 ; inputs:
