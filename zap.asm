@@ -832,7 +832,7 @@ op_test_attr:
   ; set T if bit is set
   clt
   and r16, r17
-  brne PC+2
+  breq PC+2
   set
 
   ; reopen ram at PC
