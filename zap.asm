@@ -481,6 +481,55 @@ run_op:
   brcc PC+2
   inc ZH
 
+;  ldi r16, ' '
+;  rcall usart_tx_byte
+;  rcall usart_tx_byte
+;
+;  mov r16, r21
+;  andi r16, 0xc0
+;  cpi r16, 0xc0
+;  breq _argdump_done
+;  mov r16, r2
+;  rcall usart_tx_byte_hex
+;  mov r16, r3
+;  rcall usart_tx_byte_hex
+;
+;  mov r16, r21
+;  andi r16, 0x30
+;  cpi r16, 0x30
+;  breq _argdump_done
+;  ldi r16, ' '
+;  rcall usart_tx_byte
+;  mov r16, r4
+;  rcall usart_tx_byte_hex
+;  mov r16, r5
+;  rcall usart_tx_byte_hex
+;
+;  mov r16, r21
+;  andi r16, 0x0c
+;  cpi r16, 0x0c
+;  breq _argdump_done
+;  ldi r16, ' '
+;  rcall usart_tx_byte
+;  mov r16, r6
+;  rcall usart_tx_byte_hex
+;  mov r16, r7
+;  rcall usart_tx_byte_hex
+;
+;  mov r16, r21
+;  andi r16, 0x03
+;  cpi r16, 0x03
+;  breq _argdump_done
+;  ldi r16, ' '
+;  rcall usart_tx_byte
+;  mov r16, r8
+;  rcall usart_tx_byte_hex
+;  mov r16, r0
+;  rcall usart_tx_byte_hex
+;
+;_argdump_done:
+;  rcall usart_newline
+
   ijmp
 
 
