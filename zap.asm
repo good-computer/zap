@@ -1647,7 +1647,7 @@ get_object_pointer:
 
   ; add to object table location
   add YL, r16
-  add YH, r17
+  adc YH, r17
 
   ret
 
