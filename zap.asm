@@ -1732,8 +1732,14 @@ get_object_pointer:
 ;   r16: mask for bit in attribute
 get_attribute_pointer:
 
+  ; save attribute number
+  push r17
+
   ; get the object pointer
   rcall get_object_pointer
+
+  ; get attribute number back
+  pop r17
 
   ; skip attribute bytes until we get to the right one
   cpi r17, 8
