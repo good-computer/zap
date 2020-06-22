@@ -834,20 +834,12 @@ op_test_attr:
   ; close ram
   rcall ram_end
 
-  ; get the object pointer
+  ; find the attribute
   mov r16, r2
-  rcall get_object_pointer
+  mov r17, r4
+  rcall get_attribute_pointer
 
-  ; skip attribute bytes until we get to the right one
-  mov r16, r4
-
-  cpi r16, 8
-  brlo PC+4
-  adiw YL, 1
-  subi r16, 8
-  rjmp PC-4
-
-  ; save bit count
+  ; save bit mask
   push r16
 
   ; open ram at attribute position
@@ -860,24 +852,12 @@ op_test_attr:
 
   rcall ram_end
 
-  ; get bit count back
+  ; get bit mask back
   pop r17
-
-  ; start at top bit
-  ldi r18, 0x80
-
-  ; shift bits until we get to the right one
-  tst r17
-  breq PC+4
-  lsr r18
-  dec r17
-  rjmp PC-4
-
-  ; mask now in r18
 
   ; set T if bit is set
   clt
-  and r16, r18
+  and r16, r17
   brne PC+2
   set
 
@@ -1699,6 +1679,38 @@ get_object_pointer:
   ; add to object table location
   add YL, r16
   add YH, r17
+
+  ret
+
+
+; get pointer and mask to attribute byte
+; inputs:
+;   r16: object number
+;   r17: attribute number
+; outputs:
+;   Y: location to attribute byte in object
+;   r16: mask for bit in attribute
+get_attribute_pointer:
+
+  ; get the object pointer
+  rcall get_object_pointer
+
+  ; skip attribute bytes until we get to the right one
+  cpi r17, 8
+  brlo PC+4
+  adiw YL, 1
+  subi r17, 8
+  rjmp PC-4
+
+  ; start at top bit
+  ldi r16, 0x80
+
+  ; shift bits until we get to the right one
+  tst r17
+  breq PC+4
+  lsr r16
+  dec r17
+  rjmp PC-4
 
   ret
 
