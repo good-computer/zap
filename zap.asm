@@ -465,22 +465,22 @@ op_0_table:
   rjmp unimpl      ; [v5] piracy ?(label)
 
 op_1_table:
-  rjmp op_jz        ; jz a ?(label)
-  rjmp unimpl       ; get_sibling object -> (result) ?(label)
-  rjmp unimpl       ; get_child object -> (result) ?(label)
-  rjmp unimpl       ; get_parent object -> (result)
-  rjmp unimpl       ; get_prop_len property-address -> (result)
-  rjmp unimpl       ; inc (variable)
-  rjmp unimpl       ; dec (variable)
-  rjmp unimpl       ; print_addr byte-address-of-string
-  rjmp unimpl       ; [v4] call_1s routine -> (result)
-  rjmp unimpl       ; remove_obj object
-  rjmp op_print_obj ; print_obj object
-  rjmp op_ret       ; ret value
-  rjmp op_jump      ; jump ?(label)
-  rjmp unimpl       ;  print_paddr packed-address-of-string
-  rjmp unimpl       ; load (variable) -> result
-  rjmp unimpl       ; not value -> (result) [v5 call_1n routine]
+  rjmp op_jz         ; jz a ?(label)
+  rjmp unimpl        ; get_sibling object -> (result) ?(label)
+  rjmp unimpl        ; get_child object -> (result) ?(label)
+  rjmp op_get_parent ; get_parent object -> (result)
+  rjmp unimpl        ; get_prop_len property-address -> (result)
+  rjmp unimpl        ; inc (variable)
+  rjmp unimpl        ; dec (variable)
+  rjmp unimpl        ; print_addr byte-address-of-string
+  rjmp unimpl        ; [v4] call_1s routine -> (result)
+  rjmp unimpl        ; remove_obj object
+  rjmp op_print_obj  ; print_obj object
+  rjmp op_ret        ; ret value
+  rjmp op_jump       ; jump ?(label)
+  rjmp unimpl        ;  print_paddr packed-address-of-string
+  rjmp unimpl        ; load (variable) -> result
+  rjmp unimpl        ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
   rjmp unimpl       ; [nonexistent]
@@ -600,6 +600,48 @@ op_jz:
   set
 
   rjmp branch_generic
+
+
+; get_parent object -> (result)
+op_get_parent:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp store_op_result
+
+  ; close ram
+  rcall ram_end
+
+  ; get the object pointer
+  mov r16, r2
+  rcall get_object_pointer
+
+  ; add 4 bytes for parent number
+  adiw YL, 4
+
+  ; open ram at object parent number
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read parent number
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; move to arg0 for result
+  mov r2, r16
+  clr r3
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp store_op_result
 
 
 ; print_obj object
