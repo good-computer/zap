@@ -606,38 +606,38 @@ op_2_table:
   rjmp op_unimpl    ; [nonexistent]
 
 op_v_table:
-  rjmp op_call     ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
-  rjmp op_storew   ; storew array word-index value
-  rjmp op_unimpl   ; storeb array byte-index value
-  rjmp op_put_prop ; put_prop object property value
-  rjmp op_unimpl   ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
-  rjmp op_unimpl   ; print_char output-character-code
-  rjmp op_unimpl   ; print_num value
-  rjmp op_unimpl   ; random range -> (result)
-  rjmp op_unimpl   ; push value
-  rjmp op_unimpl   ; pull (variable) [v6 pull stack -> (result)]
-  rjmp op_unimpl   ; [v3] split_window lines
-  rjmp op_unimpl   ; [v3] set_window lines
-  rjmp op_unimpl   ; [v4] call_vs2 routine (0..7) -> (result)
-  rjmp op_unimpl   ; [v4] erase_window window
-  rjmp op_unimpl   ; [v4] erase_line value [v6 erase_line pixels]
-  rjmp op_unimpl   ; [v4] set_cursor line column [v6 set_cursor line column window]
-  rjmp op_unimpl   ; [v4] get_cursor array
-  rjmp op_unimpl   ; [v4] set_text_style style
-  rjmp op_unimpl   ; [v4] buffer_mode flag
-  rjmp op_unimpl   ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
-  rjmp op_unimpl   ; [v3] input_stream number
-  rjmp op_unimpl   ; [v5] sound_effect number effect volume routine
-  rjmp op_unimpl   ; [v4] read_char 1 time routine -> (result)
-  rjmp op_unimpl   ; [v4] scan_table x table len form -> (result)
-  rjmp op_unimpl   ; [v5] not value -> (result)
-  rjmp op_unimpl   ; [v5] call_vn routine (0..3)
-  rjmp op_unimpl   ; [v5] call_vn2 routine (0..7)
-  rjmp op_unimpl   ; [v5] tokenise text parse dictionary flag
-  rjmp op_unimpl   ; [v5] encode_text zscii-text length from coded-text
-  rjmp op_unimpl   ; [v5] copy_table first second size
-  rjmp op_unimpl   ; [v5] print_table zscii-text width height skip
-  rjmp op_unimpl   ; [v5] check_arg_count argument-number
+  rjmp op_call      ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
+  rjmp op_storew    ; storew array word-index value
+  rjmp op_unimpl    ; storeb array byte-index value
+  rjmp op_put_prop  ; put_prop object property value
+  rjmp op_unimpl    ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
+  rjmp op_unimpl    ; print_char output-character-code
+  rjmp op_print_num ; print_num value
+  rjmp op_unimpl    ; random range -> (result)
+  rjmp op_unimpl    ; push value
+  rjmp op_unimpl    ; pull (variable) [v6 pull stack -> (result)]
+  rjmp op_unimpl    ; [v3] split_window lines
+  rjmp op_unimpl    ; [v3] set_window lines
+  rjmp op_unimpl    ; [v4] call_vs2 routine (0..7) -> (result)
+  rjmp op_unimpl    ; [v4] erase_window window
+  rjmp op_unimpl    ; [v4] erase_line value [v6 erase_line pixels]
+  rjmp op_unimpl    ; [v4] set_cursor line column [v6 set_cursor line column window]
+  rjmp op_unimpl    ; [v4] get_cursor array
+  rjmp op_unimpl    ; [v4] set_text_style style
+  rjmp op_unimpl    ; [v4] buffer_mode flag
+  rjmp op_unimpl    ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
+  rjmp op_unimpl    ; [v3] input_stream number
+  rjmp op_unimpl    ; [v5] sound_effect number effect volume routine
+  rjmp op_unimpl    ; [v4] read_char 1 time routine -> (result)
+  rjmp op_unimpl    ; [v4] scan_table x table len form -> (result)
+  rjmp op_unimpl    ; [v5] not value -> (result)
+  rjmp op_unimpl    ; [v5] call_vn routine (0..3)
+  rjmp op_unimpl    ; [v5] call_vn2 routine (0..7)
+  rjmp op_unimpl    ; [v5] tokenise text parse dictionary flag
+  rjmp op_unimpl    ; [v5] encode_text zscii-text length from coded-text
+  rjmp op_unimpl    ; [v5] copy_table first second size
+  rjmp op_unimpl    ; [v5] print_table zscii-text width height skip
+  rjmp op_unimpl    ; [v5] check_arg_count argument-number
 
 
 op_unimpl:
@@ -1349,6 +1349,74 @@ prop_next:
   rcall ram_read_start
 
   rjmp decode_op
+
+
+; print_num value
+op_print_num:
+  ; move to more convenient registers
+  movw r18, r2
+
+  ; decades to consider
+  ldi ZL, low(decades*2)
+  ldi ZH, high(decades*2)
+
+  ; accumulator, to handle zero padding
+  clr r17
+
+  ; test negative
+  tst r19
+  brpl format_number_loop
+
+  ; negate
+  com r19
+  neg r18
+  sbci r19, 0xff
+
+  ; emit leading minus sign
+  ldi r16, '-'
+  rcall usart_tx_byte
+
+format_number_loop:
+  ldi r16, '0'-1
+
+  ; get decade (10 multiplier)
+  lpm r2, Z+
+  lpm r3, Z+
+
+  ; repeatedly subtract until we go negative
+  inc r16
+  sub r18, r2
+  sbc r19, r3
+  brsh PC-3
+
+  ; add back the remainder
+  add r18, r2
+  adc r19, r3
+
+  ; accumulate bottom bits of result; while its zero, we're in leading zeros
+  ; and shouldn't emit anything
+  add r17, r16
+  andi r17, 0xf
+  breq PC+2
+
+  ; emit a digit!
+  rcall usart_tx_byte
+
+  ; move to next decade
+  cpi ZL, low((decades+5)*2)
+  brne format_number_loop
+
+  ; if we didn't emit anything, then it was zero
+  tst r17
+  brne PC+3
+
+  ldi r16, '0'
+  rcall usart_tx_byte
+
+  rjmp decode_op
+
+decades:
+  .dw 10000, 1000, 100, 10, 1
 
 
 ; take output location from PC, and store r2:r3 in it
