@@ -102,10 +102,7 @@ boot_loop:
   rcall usart_rx_byte
   mov r17, r16
 
-  ldi r16, 0xa
-  rcall usart_tx_byte
-  ldi r16, 0xd
-  rcall usart_tx_byte
+  rcall usart_newline
 
   cpi r17, 'r' ; run
   breq main
@@ -120,10 +117,7 @@ boot_loop:
 main:
 
   ; distance from boot prompt
-  ldi r16, 0xa
-  rcall usart_tx_byte
-  ldi r16, 0xd
-  rcall usart_tx_byte
+  rcall usart_newline
 
   ; zero stack
   ldi XL, low(z_stack_top)
@@ -197,10 +191,7 @@ decode_op:
 
   push r16
   rcall usart_tx_byte_hex
-  ldi r16, 0xa
-  rcall usart_tx_byte
-  ldi r16, 0xd
-  rcall usart_tx_byte
+  rcall usart_newline
   pop r16
 
   ; instruction decode
@@ -1483,6 +1474,15 @@ usart_print:
   rcall usart_tx_byte
   rjmp PC-4
   ret
+
+
+; print a newline
+; just a convenience, we do this a lot
+usart_newline:
+  ldi r16, 0xa
+  rcall usart_tx_byte
+  ldi r16, 0xd
+  rjmp usart_tx_byte
 
 
 ; receive a line of input into the input buffer, with simple editing controls
