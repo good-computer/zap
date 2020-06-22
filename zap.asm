@@ -545,7 +545,7 @@ op_2_table:
   rjmp op_store     ; store (variable) value
   rjmp unimpl       ; insert_obj object destination
   rjmp op_loadw     ; loadw array word-index -> (result)
-  rjmp unimpl       ; loadb array byte-index -> (result)
+  rjmp op_loadb     ; loadb array byte-index -> (result)
   rjmp unimpl       ; get_prop object property -> (result)
   rjmp unimpl       ; get_prop_addr object property -> (result)
   rjmp unimpl       ; get_next_prop object property -> (result)
@@ -986,6 +986,42 @@ op_loadw:
   rcall ram_read_pair
   mov r3, r16
   mov r2, r17
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done, store value
+  rjmp store_op_result
+
+
+; loadb array byte-index -> (result)
+op_loadb:
+
+  ; XXX life & share with loadw
+
+  ; compute array index address
+  lsl r4
+  rol r5
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  ; get value
+  rcall ram_read_byte
+  mov r2, r16
+  clr r3
 
   ; close ram again
   rcall ram_end
