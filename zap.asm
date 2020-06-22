@@ -3,14 +3,16 @@
 ;.device ATmega8
 .include "m8def.inc"
 
-; global variable space 240 vars * 2 bytes
-; 0x0060-0x0240
+; global variable space 240 vars * 2 bytes, 0x0060-0x0240
+; stores in z-machine order (H:L)
 .equ z_global_vars = 0x0060
 
 ; story file header
 .equ z_header = 0x0240
 
-; empty stack
+; z stack. word values are stored in local order (L:H), so H must be pushed first
+; SP <-----------
+;    ... LH LH LH
 .equ z_stack_top = 0x03d0
 
 ; input buffer
@@ -408,9 +410,9 @@ decode_variable_number:
   tst r16
   brne PC+4
 
-  ; var 0: take top of stack (taking high byte first)
-  ld r1, X+
+  ; var 0: take top of stack (stack order, pop low first)
   ld r0, X+
+  ld r1, X+
   ret
 
   cpi r16, 16
@@ -426,9 +428,9 @@ decode_variable_number:
   sub YL, r16
   sbci YH, 0
 
-  ; take it (high byte first)
-  ld r1, Y+
+  ; take it (stack order, pop low first)
   ld r0, Y+
+  ld r1, Y+
   ret
 
   ; var 16-255: global var
@@ -837,12 +839,12 @@ op_ret:
   movw XL, z_argp_l
 
   ; restore previous argp
-  ld z_argp_h, X+
   ld z_argp_l, X+
+  ld z_argp_h, X+
 
   ; restore previous PC
-  ld z_pc_h, X+
   ld z_pc_l, X+
+  ld z_pc_h, X+
 
   ; reopen ram at restored PC
   movw r16, z_pc_l
@@ -1014,13 +1016,13 @@ op_call:
   ; close current rem read (instruction)
   rcall ram_end
 
-  ; save current PC
-  st -X, z_pc_l
+  ; save current PC (stack order, push high first)
   st -X, z_pc_h
+  st -X, z_pc_l
 
-  ; save current argp
-  st -X, z_argp_l
+  ; save current argp (stack order, push high first)
   st -X, z_argp_h
+  st -X, z_argp_l
 
   ; set new argp to top of stack
   movw z_argp_l, XL
@@ -1048,7 +1050,7 @@ op_call:
   adiw z_pc_l, 1
 
   ; copy initial values into stacked local vars
-  mov r17, r16
+  mov r18, r16
 
   ; location of arg1 registers (r4:r5) in RAM, so we can walk like memory
   ldi YL, low(0x0004)
@@ -1056,7 +1058,7 @@ op_call:
 
 op_call_set_arg:
   ; got them all yet?
-  tst r17
+  tst r18
   breq op_call_args_ready
 
   ; shift type down two (doing first, to throw away first arg which is raddr)
@@ -1070,26 +1072,27 @@ op_call_set_arg:
   cpi r16, 0xc0
   breq op_call_default_args
 
-  ; yes, stack it (pushing low byte first)
+  ; yes, stack it (stack order, push high first)
   ld r16, Y+
-  st -X, r16
-  ld r16, Y+
+  ld r17, Y+
+  st -X, r17
   st -X, r16
 
   ; skip two default bytes
   rcall ram_read_byte
   rcall ram_read_byte
-  subi r17, 2
+  subi r18, 2
 
   rjmp op_call_set_arg
 
 op_call_default_args:
   ; fill the rest with default args
-  tst r17
+  ; reading z order (h:l), so stacking in stack order (push high first)
+  tst r18
   breq op_call_args_ready
   rcall ram_read_byte
   st -X, r16
-  dec r17
+  dec r18
   rjmp op_call_default_args
 
 op_call_args_ready:
@@ -1360,9 +1363,9 @@ store_op_result_at:
   tst r16
   brne PC+4
 
-  ; var 0: push onto stack (low byte first)
-  st -X, r2
+  ; var 0: push onto stack (stack order, push high first)
   st -X, r3
+  st -X, r2
   rjmp decode_op
 
   cpi r16, 16
@@ -1378,9 +1381,9 @@ store_op_result_at:
   sub YL, r16
   sbci YH, 0
 
-  ; store it (high byte first)
-  st Y+, r3
+  ; store it (stack order, store low first)
   st Y+, r2
+  st Y+, r3
   rjmp decode_op
 
   ; var 16-255: global var
@@ -1399,9 +1402,9 @@ store_op_result_at:
   add YL, r16
   adc YH, r17
 
-  ; store it (z order, high first)
-  st Y+, r1
-  st Y+, r0
+  ; store it (z order, store high first)
+  st Y+, r3
+  st Y+, r2
   rjmp decode_op
 
 
