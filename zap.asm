@@ -119,6 +119,12 @@ boot_loop:
 
 main:
 
+  ; distance from boot prompt
+  ldi r16, 0xa
+  rcall usart_tx_byte
+  ldi r16, 0xd
+  rcall usart_tx_byte
+
   ; zero stack
   ldi XL, low(z_stack_top)
   ldi XH, high(z_stack_top)
