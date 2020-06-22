@@ -1148,57 +1148,10 @@ op_put_prop:
   ; close ram
   rcall ram_end
 
-  ; get the object pointer
+  ; find the property value
   mov r16, r2
-  rcall get_object_pointer
-
-  ; add 7 bytes for property pointer
-  adiw YL, 7
-
-  ; open ram at object property pointer
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  ; read property pointer
-  rcall ram_read_pair
-  mov YL, r17
-  mov YH, r16
-
-  ; close ram again
-  rcall ram_end
-
-  ; open for read at start of property table
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  ; get short name length
-  rcall ram_read_byte
-  adiw YL, 1
-
-  ; its a word count
-  lsl r16
-
-prop_next:
-  ; add to position
-  add YL, r16
-  brcc PC+2
-  inc YH
-
-  ; advance past it (could just reset ram position, but its only a few bytes)
-  mov r17, r16
-  tst r17
-  breq PC+4
-  rcall ram_read_byte
-  dec r17
-  rjmp PC-4
-
-  ; now searching for the named property, in r4
-
-  ; size byte
-  rcall ram_read_byte
-  adiw YL, 1
+  mov r17, r4
+  rcall get_object_property_pointer
 
   tst r16
   brne PC+2
@@ -1206,30 +1159,8 @@ prop_next:
   ; not found, but the spec says it has to be here, so its quite ok to just abort
   rjmp fatal
 
-  ; this byte is two things!
-  mov r17, r16
-
-  ; top three bits are length-1
-  andi r16, 0xe0
-  lsr r16
-  lsr r16
-  lsr r16
-  lsr r16
-  lsr r16
-  inc r16
-
-  ; bottom five bits are property number
-  andi r17, 0x1f
-
-  ; did we find it? if not, loop to advance #r16 and retry
-  cp r17, r4
-  brne prop_next
-
   ; put the length aside
   push r16
-
-  ; close ram
-  rcall ram_end
 
   ; prep for write
   movw r16, YL
@@ -1758,6 +1689,106 @@ get_attribute_pointer:
   dec r17
   rjmp PC-4
 
+  ret
+
+
+; get pointer to object property
+; inputs:
+;   r16: object number
+;   r17: property number
+; outputs:
+;   Y: location of property value
+;   r16: length of property (0 if not found)
+get_object_property_pointer:
+
+  ; save property number
+  push r17
+
+  ; get the object pointer
+  rcall get_object_pointer
+
+  ; add 7 bytes for property pointer
+  adiw YL, 7
+
+  ; open ram at object property pointer
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read property pointer
+  rcall ram_read_pair
+  mov YL, r17
+  mov YH, r16
+
+  ; close ram again
+  rcall ram_end
+
+  ; open for read at start of property table
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; get short name length
+  rcall ram_read_byte
+  adiw YL, 1
+
+  ; its a word count
+  lsl r16
+
+  ; get property number back for matching
+  pop r18
+
+prop_next:
+  ; add to position
+  add YL, r16
+  brcc PC+2
+  inc YH
+
+  ; advance past it (could just reset ram position, but its only a few bytes)
+  mov r17, r16
+  tst r17
+  breq PC+4
+  rcall ram_read_byte
+  dec r17
+  rjmp PC-4
+
+  ; now searching for the named property, in r18
+
+  ; size byte
+  rcall ram_read_byte
+  adiw YL, 1
+
+  tst r16
+  brne PC+4
+
+  ; not found, flag zero length and bail
+  rcall ram_end
+  clr r16
+  ret
+
+  ; this byte is two things!
+  mov r17, r16
+
+  ; top three bits are length-1
+  andi r16, 0xe0
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  inc r16
+
+  ; bottom five bits are property number
+  andi r17, 0x1f
+
+  ; did we find it? if not, loop to advance #r16 and retry
+  cp r17, r18
+  brne prop_next
+
+  ; close ram
+  rcall ram_end
+
+  ; there we go
   ret
 
 
