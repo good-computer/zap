@@ -493,8 +493,8 @@ run_op:
 
 
 op_0_table:
-  rjmp unimpl      ; rtrue
-  rjmp unimpl      ; rfalse
+  rjmp op_rtrue    ; rtrue
+  rjmp op_rfalse   ; rfalse
   rjmp op_print    ; print (literal_string)
   rjmp unimpl      ; print_ret (literal-string)
   rjmp unimpl      ; nop
@@ -595,6 +595,25 @@ op_v_table:
   rjmp unimpl        ; [v5] copy_table first second size
   rjmp unimpl        ; [v5] print_table zscii-text width height skip
   rjmp unimpl        ; [v5] check_arg_count argument-number
+
+
+; rtrue
+op_rtrue:
+
+  ; ret 1
+  ldi r16, 1
+  mov r2, r16
+  clr r3
+  rjmp op_ret
+
+
+; rfalse
+op_rfalse:
+
+  ; ret 0
+  clr r2
+  clr r3
+  rjmp op_ret
 
 
 ; print (literal_string)
