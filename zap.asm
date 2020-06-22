@@ -863,15 +863,23 @@ op_test_attr:
   ; get bit count back
   pop r17
 
+  ; start at top bit
+  ldi r18, 0x80
+
   ; shift bits until we get to the right one
   tst r17
   breq PC+4
-  lsl r16
+  lsr r18
   dec r17
   rjmp PC-4
 
-  ; attribute now in top bit, move to T
-  bst r16, 7
+  ; mask now in r18
+
+  ; set T if bit is set
+  clt
+  and r16, r18
+  brne PC+2
+  set
 
   ; reopen ram at PC
   movw r16, z_pc_l
