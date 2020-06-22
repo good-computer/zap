@@ -27,6 +27,10 @@
 .def z_argp_l = r22
 .def z_argp_h = r23
 
+; start of last instruction (for debugging)
+.def z_last_pc_l = r14
+.def z_last_pc_h = r15
+
 
 .cseg
 .org 0x0000
@@ -99,7 +103,6 @@ boot:
   ldi ZH, high(text_boot_prompt*2)
   rcall usart_print_static
 
-boot_loop:
   ; wait for key
   rcall usart_rx_byte
   mov r17, r16
@@ -136,11 +139,11 @@ main:
   rcall ram_read_bytes
   rcall ram_end
 
-  ldi ZL, low(z_header)
-  ldi ZH, high(z_header)
-  ldi r16, 0x40
-  clr r17
-  rcall usart_tx_bytes_hex
+  ;ldi ZL, low(z_header)
+  ;ldi ZH, high(z_header)
+  ;ldi r16, 0x40
+  ;clr r17
+  ;rcall usart_tx_bytes_hex
 
   ; XXX fill header?
 
@@ -180,21 +183,24 @@ decode_op:
   ;ldi r17, 0x2
   ;rcall usart_tx_bytes_hex
 
-  mov r16, z_pc_h
-  rcall usart_tx_byte_hex
-  mov r16, z_pc_l
-  rcall usart_tx_byte_hex
-  ldi r16, ' '
-  rcall usart_tx_byte
+  ;mov r16, z_pc_h
+  ;rcall usart_tx_byte_hex
+  ;mov r16, z_pc_l
+  ;rcall usart_tx_byte_hex
+  ;ldi r16, ' '
+  ;rcall usart_tx_byte
+
+  ; note start of instruction for reporting
+  movw z_last_pc_l, z_pc_l
 
   ; get opcode
   rcall ram_read_byte
   adiw z_pc_l, 1
 
-  push r16
-  rcall usart_tx_byte_hex
-  rcall usart_newline
-  pop r16
+  ;push r16
+  ;rcall usart_tx_byte_hex
+  ;rcall usart_newline
+  ;pop r16
 
   ; instruction decode
   ; 0 t t xxxxx: long op (2op, 1-bit type)
@@ -483,195 +489,112 @@ run_op:
   brcc PC+2
   inc ZH
 
-;  ldi r16, ' '
-;  rcall usart_tx_byte
-;  rcall usart_tx_byte
-;
-;  mov r16, r21
-;  andi r16, 0xc0
-;  cpi r16, 0xc0
-;  breq _argdump_done
-;  mov r16, r2
-;  rcall usart_tx_byte_hex
-;  mov r16, r3
-;  rcall usart_tx_byte_hex
-;
-;  mov r16, r21
-;  andi r16, 0x30
-;  cpi r16, 0x30
-;  breq _argdump_done
-;  ldi r16, ' '
-;  rcall usart_tx_byte
-;  mov r16, r4
-;  rcall usart_tx_byte_hex
-;  mov r16, r5
-;  rcall usart_tx_byte_hex
-;
-;  mov r16, r21
-;  andi r16, 0x0c
-;  cpi r16, 0x0c
-;  breq _argdump_done
-;  ldi r16, ' '
-;  rcall usart_tx_byte
-;  mov r16, r6
-;  rcall usart_tx_byte_hex
-;  mov r16, r7
-;  rcall usart_tx_byte_hex
-;
-;  mov r16, r21
-;  andi r16, 0x03
-;  cpi r16, 0x03
-;  breq _argdump_done
-;  ldi r16, ' '
-;  rcall usart_tx_byte
-;  mov r16, r8
-;  rcall usart_tx_byte_hex
-;  mov r16, r0
-;  rcall usart_tx_byte_hex
-;
-;_argdump_done:
-;  rcall usart_newline
-
   ijmp
 
 
 op_0_table:
-  rjmp op_unimpl ; rtrue
-  rjmp op_unimpl ; rfalse
-  rjmp op_print  ; print (literal_string)
-  rjmp op_unimpl ; print_ret (literal-string)
-  rjmp op_unimpl ; nop
-  rjmp op_unimpl ; save ?(label) [v4 save -> (result)] [v5 illegal]
-  rjmp op_unimpl ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
-  rjmp op_unimpl ; restart
-  rjmp op_unimpl ; ret_popped
-  rjmp op_unimpl ; pop [v5/6 catch -> (result)]
-  rjmp op_unimpl ; quit
-  rjmp op_unimpl ; new_line
-  rjmp op_unimpl ; [v3] show_status [v4 illegal]
-  rjmp op_unimpl ; [v3] verify ?(label)
-  rjmp op_unimpl ; [v5] [extended opcode]
-  rjmp op_unimpl ; [v5] piracy ?(label)
+  rjmp unimpl   ; rtrue
+  rjmp unimpl   ; rfalse
+  rjmp op_print ; print (literal_string)
+  rjmp unimpl   ; print_ret (literal-string)
+  rjmp unimpl   ; nop
+  rjmp unimpl   ; save ?(label) [v4 save -> (result)] [v5 illegal]
+  rjmp unimpl   ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
+  rjmp unimpl   ; restart
+  rjmp unimpl   ; ret_popped
+  rjmp unimpl   ; pop [v5/6 catch -> (result)]
+  rjmp unimpl   ; quit
+  rjmp unimpl   ; new_line
+  rjmp unimpl   ; [v3] show_status [v4 illegal]
+  rjmp unimpl   ; [v3] verify ?(label)
+  rjmp unimpl   ; [v5] [extended opcode]
+  rjmp unimpl   ; [v5] piracy ?(label)
 
 op_1_table:
-  rjmp op_jz     ; jz a ?(label)
-  rjmp op_unimpl ; get_sibling object -> (result) ?(label)
-  rjmp op_unimpl ; get_child object -> (result) ?(label)
-  rjmp op_unimpl ; get_parent object -> (result)
-  rjmp op_unimpl ; get_prop_len property-address -> (result)
-  rjmp op_unimpl ; inc (variable)
-  rjmp op_unimpl ; dec (variable)
-  rjmp op_unimpl ; print_addr byte-address-of-string
-  rjmp op_unimpl ; [v4] call_1s routine -> (result)
-  rjmp op_unimpl ; remove_obj object
-  rjmp op_unimpl ; print_obj object
-  rjmp op_ret    ; ret value
-  rjmp op_jump   ; jump ?(label)
-  rjmp op_unimpl ;  print_paddr packed-address-of-string
-  rjmp op_unimpl ; load (variable) -> result
-  rjmp op_unimpl ; not value -> (result) [v5 call_1n routine]
+  rjmp op_jz   ; jz a ?(label)
+  rjmp unimpl  ; get_sibling object -> (result) ?(label)
+  rjmp unimpl  ; get_child object -> (result) ?(label)
+  rjmp unimpl  ; get_parent object -> (result)
+  rjmp unimpl  ; get_prop_len property-address -> (result)
+  rjmp unimpl  ; inc (variable)
+  rjmp unimpl  ; dec (variable)
+  rjmp unimpl  ; print_addr byte-address-of-string
+  rjmp unimpl  ; [v4] call_1s routine -> (result)
+  rjmp unimpl  ; remove_obj object
+  rjmp unimpl  ; print_obj object
+  rjmp op_ret  ; ret value
+  rjmp op_jump ; jump ?(label)
+  rjmp unimpl  ;  print_paddr packed-address-of-string
+  rjmp unimpl  ; load (variable) -> result
+  rjmp unimpl  ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
-  rjmp op_unimpl    ; [nonexistent]
+  rjmp unimpl       ; [nonexistent]
   rjmp op_je        ; je a b ?(label)
-  rjmp op_unimpl    ; jl a b ?(label)
-  rjmp op_unimpl    ; jg a b ?(label)
-  rjmp op_unimpl    ; dec_chk (variable) value ?(label)
-  rjmp op_unimpl    ; inc_chk (variable) value ?(label)
-  rjmp op_unimpl    ; jin obj1 obj2 ?(label)
-  rjmp op_unimpl    ; test bitmap flags ?(label)
-  rjmp op_unimpl    ; or a b -> (result)
+  rjmp unimpl       ; jl a b ?(label)
+  rjmp unimpl       ; jg a b ?(label)
+  rjmp unimpl       ; dec_chk (variable) value ?(label)
+  rjmp unimpl       ; inc_chk (variable) value ?(label)
+  rjmp unimpl       ; jin obj1 obj2 ?(label)
+  rjmp unimpl       ; test bitmap flags ?(label)
+  rjmp unimpl       ; or a b -> (result)
   rjmp op_and       ; and a b -> (result)
   rjmp op_test_attr ; test_attr object attribute ?(label)
-  rjmp op_unimpl    ; set_attr object attribute
-  rjmp op_unimpl    ; clear_attr object attribute
+  rjmp unimpl       ; set_attr object attribute
+  rjmp unimpl       ; clear_attr object attribute
   rjmp op_store     ; store (variable) value
-  rjmp op_unimpl    ; insert_obj object destination
+  rjmp unimpl       ; insert_obj object destination
   rjmp op_loadw     ; loadw array word-index -> (result)
-  rjmp op_unimpl    ; loadb array byte-index -> (result)
-  rjmp op_unimpl    ; get_prop object property -> (result)
-  rjmp op_unimpl    ; get_prop_addr object property -> (result)
-  rjmp op_unimpl    ; get_next_prop object property -> (result)
+  rjmp unimpl       ; loadb array byte-index -> (result)
+  rjmp unimpl       ; get_prop object property -> (result)
+  rjmp unimpl       ; get_prop_addr object property -> (result)
+  rjmp unimpl       ; get_next_prop object property -> (result)
   rjmp op_add       ; add a b -> (result)
   rjmp op_sub       ; sub a b -> (result)
-  rjmp op_unimpl    ; mul a b -> (result)
-  rjmp op_unimpl    ; div a b -> (result)
-  rjmp op_unimpl    ; mod a b -> (result)
-  rjmp op_unimpl    ; [v4] call_2s routine arg1 -> (result)
-  rjmp op_unimpl    ; [v5] call_2n routine arg1
-  rjmp op_unimpl    ; [v5] set_colour foreground background [v6 set_colour foreground background window]
-  rjmp op_unimpl    ; [v5] throw value stack-frame
-  rjmp op_unimpl    ; [nonexistent]
-  rjmp op_unimpl    ; [nonexistent]
-  rjmp op_unimpl    ; [nonexistent]
+  rjmp unimpl       ; mul a b -> (result)
+  rjmp unimpl       ; div a b -> (result)
+  rjmp unimpl       ; mod a b -> (result)
+  rjmp unimpl       ; [v4] call_2s routine arg1 -> (result)
+  rjmp unimpl       ; [v5] call_2n routine arg1
+  rjmp unimpl       ; [v5] set_colour foreground background [v6 set_colour foreground background window]
+  rjmp unimpl       ; [v5] throw value stack-frame
+  rjmp unimpl       ; [nonexistent]
+  rjmp unimpl       ; [nonexistent]
+  rjmp unimpl       ; [nonexistent]
 
 op_v_table:
   rjmp op_call      ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
   rjmp op_storew    ; storew array word-index value
-  rjmp op_unimpl    ; storeb array byte-index value
+  rjmp unimpl       ; storeb array byte-index value
   rjmp op_put_prop  ; put_prop object property value
-  rjmp op_unimpl    ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
-  rjmp op_unimpl    ; print_char output-character-code
+  rjmp unimpl       ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
+  rjmp unimpl       ; print_char output-character-code
   rjmp op_print_num ; print_num value
-  rjmp op_unimpl    ; random range -> (result)
-  rjmp op_unimpl    ; push value
-  rjmp op_unimpl    ; pull (variable) [v6 pull stack -> (result)]
-  rjmp op_unimpl    ; [v3] split_window lines
-  rjmp op_unimpl    ; [v3] set_window lines
-  rjmp op_unimpl    ; [v4] call_vs2 routine (0..7) -> (result)
-  rjmp op_unimpl    ; [v4] erase_window window
-  rjmp op_unimpl    ; [v4] erase_line value [v6 erase_line pixels]
-  rjmp op_unimpl    ; [v4] set_cursor line column [v6 set_cursor line column window]
-  rjmp op_unimpl    ; [v4] get_cursor array
-  rjmp op_unimpl    ; [v4] set_text_style style
-  rjmp op_unimpl    ; [v4] buffer_mode flag
-  rjmp op_unimpl    ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
-  rjmp op_unimpl    ; [v3] input_stream number
-  rjmp op_unimpl    ; [v5] sound_effect number effect volume routine
-  rjmp op_unimpl    ; [v4] read_char 1 time routine -> (result)
-  rjmp op_unimpl    ; [v4] scan_table x table len form -> (result)
-  rjmp op_unimpl    ; [v5] not value -> (result)
-  rjmp op_unimpl    ; [v5] call_vn routine (0..3)
-  rjmp op_unimpl    ; [v5] call_vn2 routine (0..7)
-  rjmp op_unimpl    ; [v5] tokenise text parse dictionary flag
-  rjmp op_unimpl    ; [v5] encode_text zscii-text length from coded-text
-  rjmp op_unimpl    ; [v5] copy_table first second size
-  rjmp op_unimpl    ; [v5] print_table zscii-text width height skip
-  rjmp op_unimpl    ; [v5] check_arg_count argument-number
-
-
-op_unimpl:
-
-  ; flash the lights so I know what happened
-  sbi PORTB, PB0
-  cbi PORTB, PB1
-
-  ; ~500ms
-  ldi  r18, 41
-  ldi  r19, 150
-  ldi  r20, 128
-  dec  r20
-  brne PC-1
-  dec  r19
-  brne PC-3
-  dec  r18
-  brne PC-5
-
-  cbi PORTB, PB0
-  sbi PORTB, PB1
-
-  ; ~500ms
-  ldi  r18, 41
-  ldi  r19, 150
-  ldi  r20, 128
-  dec  r20
-  brne PC-1
-  dec  r19
-  brne PC-3
-  dec  r18
-  brne PC-5
-
-  rjmp op_unimpl
+  rjmp unimpl       ; random range -> (result)
+  rjmp unimpl       ; push value
+  rjmp unimpl       ; pull (variable) [v6 pull stack -> (result)]
+  rjmp unimpl       ; [v3] split_window lines
+  rjmp unimpl       ; [v3] set_window lines
+  rjmp unimpl       ; [v4] call_vs2 routine (0..7) -> (result)
+  rjmp unimpl       ; [v4] erase_window window
+  rjmp unimpl       ; [v4] erase_line value [v6 erase_line pixels]
+  rjmp unimpl       ; [v4] set_cursor line column [v6 set_cursor line column window]
+  rjmp unimpl       ; [v4] get_cursor array
+  rjmp unimpl       ; [v4] set_text_style style
+  rjmp unimpl       ; [v4] buffer_mode flag
+  rjmp unimpl       ; [v3] output_stream number [v5 output_stream number table] [v6 output_stream number table width]
+  rjmp unimpl       ; [v3] input_stream number
+  rjmp unimpl       ; [v5] sound_effect number effect volume routine
+  rjmp unimpl       ; [v4] read_char 1 time routine -> (result)
+  rjmp unimpl       ; [v4] scan_table x table len form -> (result)
+  rjmp unimpl       ; [v5] not value -> (result)
+  rjmp unimpl       ; [v5] call_vn routine (0..3)
+  rjmp unimpl       ; [v5] call_vn2 routine (0..7)
+  rjmp unimpl       ; [v5] tokenise text parse dictionary flag
+  rjmp unimpl       ; [v5] encode_text zscii-text length from coded-text
+  rjmp unimpl       ; [v5] copy_table first second size
+  rjmp unimpl       ; [v5] print_table zscii-text width height skip
+  rjmp unimpl       ; [v5] check_arg_count argument-number
 
 
 ; print (literal_string)
@@ -1476,15 +1399,109 @@ store_op_result_at:
   rjmp decode_op
 
 
-fatal:
-  ; XXX dump PC and stack here maybe?
+unimpl:
+  ldi ZL, low(text_unimplemented*2)
+  ldi ZH, high(text_unimplemented*2)
+  rcall usart_print_static
+  rcall dump
 
+  rjmp wd_reset
+
+fatal:
+  ldi ZL, low(text_fatal*2)
+  ldi ZH, high(text_fatal*2)
+  rcall usart_print_static
+
+  ; XXX dump stack and global vars?
+
+  rjmp wd_reset
+
+wd_reset:
   ; enable watchdog timer to force reset in ~16ms
   cli
   ldi r16, (1<<WDE)
   out WDTCR, r16
   rjmp PC
 
+dump:
+  ldi ZL, low(text_pc*2)
+  ldi ZH, high(text_pc*2)
+  rcall usart_print_static
+  mov r16, z_last_pc_h
+  rcall usart_tx_byte_hex
+  mov r16, z_last_pc_l
+  rcall usart_tx_byte_hex
+  rcall usart_newline
+
+  ldi ZL, low(text_opcode*2)
+  ldi ZH, high(text_opcode*2)
+  rcall usart_print_static
+  mov r16, r20
+  rcall usart_tx_byte_hex
+  rcall usart_newline
+
+  ldi ZL, low(text_argtype*2)
+  ldi ZH, high(text_argtype*2)
+  rcall usart_print_static
+  mov r16, r21
+  rcall usart_tx_byte_hex
+  rcall usart_newline
+
+  ; XXX roll this up
+  mov r16, r21
+  andi r16, 0xc0
+  cpi r16, 0xc0
+  breq dump_done
+  ldi ZL, low(text_arg0*2)
+  ldi ZH, high(text_arg0*2)
+  rcall usart_print_static
+  mov r16, r3
+  rcall usart_tx_byte_hex
+  mov r16, r2
+  rcall usart_tx_byte_hex
+  rcall usart_newline
+
+  mov r16, r21
+  andi r16, 0x30
+  cpi r16, 0x30
+  breq dump_done
+  ldi ZL, low(text_arg1*2)
+  ldi ZH, high(text_arg1*2)
+  rcall usart_print_static
+  mov r16, r5
+  rcall usart_tx_byte_hex
+  mov r16, r4
+  rcall usart_tx_byte_hex
+  rcall usart_newline
+
+  mov r16, r21
+  andi r16, 0x0c
+  cpi r16, 0x0c
+  breq dump_done
+  ldi ZL, low(text_arg2*2)
+  ldi ZH, high(text_arg2*2)
+  rcall usart_print_static
+  mov r16, r7
+  rcall usart_tx_byte_hex
+  mov r16, r6
+  rcall usart_tx_byte_hex
+  rcall usart_newline
+
+  mov r16, r21
+  andi r16, 0x03
+  cpi r16, 0x03
+  breq dump_done
+  ldi ZL, low(text_arg3*2)
+  ldi ZH, high(text_arg3*2)
+  rcall usart_print_static
+  mov r16, r9
+  rcall usart_tx_byte_hex
+  mov r16, r8
+  rcall usart_tx_byte_hex
+  rcall usart_newline
+
+dump_done:
+  ret
 
 ; get pointer to start of object
 ; inputs:
@@ -2035,3 +2052,21 @@ ram_write_pair:
 
 text_boot_prompt:
   .db 0xa, 0xd, 0xa, 0xd, "[zap] (r)un (l)oad: ", 0
+text_unimplemented:
+  .db 0xa, 0xd, 0xa, 0xd, "unimplemented opcode!", 0xa, 0xd, 0
+text_fatal:
+  .db 0xa, 0xd, 0xa, 0xd, "fatal!", 0xa, 0xd, 0
+text_pc:
+  .db "     PC: ", 0
+text_opcode:
+  .db " opcode: ", 0
+text_argtype:
+  .db "argtype: ", 0
+text_arg0:
+  .db "  arg 0: ", 0
+text_arg1:
+  .db "  arg 1: ", 0
+text_arg2:
+  .db "  arg 2: ", 0
+text_arg3:
+  .db "  arg 3: ", 0
