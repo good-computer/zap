@@ -1299,6 +1299,7 @@ prop_next:
   rjmp decode_op
 
 
+; take output location from PC, and store r2:r3 in it
 store_op_result:
 
   ; take the return byte
