@@ -494,7 +494,7 @@ op_2_table:
   rjmp unimpl       ; or a b -> (result)
   rjmp op_and       ; and a b -> (result)
   rjmp op_test_attr ; test_attr object attribute ?(label)
-  rjmp unimpl       ; set_attr object attribute
+  rjmp op_set_attr  ; set_attr object attribute
   rjmp unimpl       ; clear_attr object attribute
   rjmp op_store     ; store (variable) value
   rjmp unimpl       ; insert_obj object destination
@@ -867,6 +867,58 @@ op_test_attr:
   rcall ram_read_start
 
   rjmp branch_generic
+
+
+; set_attr object attribute
+op_set_attr:
+
+  ; close ram
+  rcall ram_end
+
+  ; find the attribute
+  mov r16, r2
+  mov r17, r4
+  rcall get_attribute_pointer
+
+  ; save bitmask
+  push r16
+
+  ; open ram at attribute position
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read the single byte
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; save previous value
+  push r16
+
+  ; set up for write to attribute position
+  movw r16, YL
+  clr r18
+  rcall ram_write_start
+
+  ; get value and mask back
+  pop r16
+  pop r17
+
+  ; set bit
+  or r16, r17
+
+  ; write it out
+  rcall ram_write_byte
+
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
 
 
 ; store (variable) value
