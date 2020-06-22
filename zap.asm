@@ -530,7 +530,7 @@ op_2_table:
   rjmp op_unimpl    ; jin obj1 obj2 ?(label)
   rjmp op_unimpl    ; test bitmap flags ?(label)
   rjmp op_unimpl    ; or a b -> (result)
-  rjmp op_unimpl    ; and a b -> (result)
+  rjmp op_and       ; and a b -> (result)
   rjmp op_test_attr ; test_attr object attribute ?(label)
   rjmp op_unimpl    ; set_attr object attribute
   rjmp op_unimpl    ; clear_attr object attribute
@@ -834,6 +834,13 @@ op_je:
   breq PC+2
   clt
   rjmp branch_generic
+
+
+; and a b -> (result)
+op_and:
+  and r2, r4
+  and r3, r5
+  rjmp store_op_result
 
 
 ; test_attr object attribute ?(label)
