@@ -493,22 +493,22 @@ run_op:
 
 
 op_0_table:
-  rjmp unimpl   ; rtrue
-  rjmp unimpl   ; rfalse
-  rjmp op_print ; print (literal_string)
-  rjmp unimpl   ; print_ret (literal-string)
-  rjmp unimpl   ; nop
-  rjmp unimpl   ; save ?(label) [v4 save -> (result)] [v5 illegal]
-  rjmp unimpl   ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
-  rjmp unimpl   ; restart
-  rjmp unimpl   ; ret_popped
-  rjmp unimpl   ; pop [v5/6 catch -> (result)]
-  rjmp unimpl   ; quit
-  rjmp unimpl   ; new_line
-  rjmp unimpl   ; [v3] show_status [v4 illegal]
-  rjmp unimpl   ; [v3] verify ?(label)
-  rjmp unimpl   ; [v5] [extended opcode]
-  rjmp unimpl   ; [v5] piracy ?(label)
+  rjmp unimpl      ; rtrue
+  rjmp unimpl      ; rfalse
+  rjmp op_print    ; print (literal_string)
+  rjmp unimpl      ; print_ret (literal-string)
+  rjmp unimpl      ; nop
+  rjmp unimpl      ; save ?(label) [v4 save -> (result)] [v5 illegal]
+  rjmp unimpl      ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
+  rjmp unimpl      ; restart
+  rjmp unimpl      ; ret_popped
+  rjmp unimpl      ; pop [v5/6 catch -> (result)]
+  rjmp unimpl      ; quit
+  rjmp op_new_line ; new_line
+  rjmp unimpl      ; [v3] show_status [v4 illegal]
+  rjmp unimpl      ; [v3] verify ?(label)
+  rjmp unimpl      ; [v5] [extended opcode]
+  rjmp unimpl      ; [v5] piracy ?(label)
 
 op_1_table:
   rjmp op_jz   ; jz a ?(label)
@@ -736,6 +736,12 @@ zchar_alphabet:
   .db "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   .db " 0123456789.,!?_#'" ; avra's string parsing is buggy as shit
     .db 0x22, "/\<-:()"
+
+
+; new_line
+op_new_line:
+  rcall usart_newline
+  rjmp decode_op
 
 
 ; jz a ?(label)
