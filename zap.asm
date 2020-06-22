@@ -605,6 +605,13 @@ op_jz:
 ; print_obj object
 op_print_obj:
 
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp decode_op
+
   ; close ram
   rcall ram_end
 
@@ -748,6 +755,14 @@ op_and:
 ; test_attr object attribute ?(label)
 op_test_attr:
 
+  ; null object check
+  tst r2
+  brne PC+5
+  tst r3
+  brne PC+3
+  clt
+  rjmp branch_generic
+
   ; close ram
   rcall ram_end
 
@@ -788,6 +803,13 @@ op_test_attr:
 
 ; set_attr object attribute
 op_set_attr:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp decode_op
 
   ; close ram
   rcall ram_end
@@ -1073,6 +1095,13 @@ op_storew:
 
 ; put_prop object property value
 op_put_prop:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp decode_op
 
   ; close ram
   rcall ram_end
