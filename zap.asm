@@ -1160,6 +1160,7 @@ op_put_prop:
   brne PC+2
 
   ; not found, but the spec says it has to be here, so its quite ok to just abort
+  ; XXX idk maybe just return and then we never have fatalities
   rjmp fatal
 
   ; put the length aside
