@@ -1479,21 +1479,19 @@ branch_check_invert:
 
   ; XXX consider "fast return" cases
   tst r19
-  brne PC+9
+  brne PC+7
 
   tst r18
-  brne PC+3
+  brne PC+2
 
   ; 0, return false
-  sbi PORTB, PB0
-  rjmp PC
+  rjmp unimpl
 
   cpi r18, 1
-  brne PC+3
+  brne PC+2
 
   ; 1, return true
-  sbi PORTB, PB0
-  rjmp PC
+  rjmp unimpl
 
   ; add offset to PC
   add z_pc_l, r18
