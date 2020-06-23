@@ -2009,6 +2009,9 @@ print_zstring:
   ; reset current alphabet to A0
   clr r3
 
+  ; handle decoded bytes directly, don't stack them
+  clr r18
+
 next_zchar_word:
   ; read the word
   rcall ram_read_pair
@@ -2044,12 +2047,37 @@ next_zchar:
   rol r20
   rol r16
 
+  ; handline widechar?
+  tst r18
+  breq PC+5
+
+  ; set it aside
+  push r16
+
+  ; got them all?
+  dec r18
+  breq print_wide_zchar
+
+  ; nope, go again
+  rjmp done_zchar
+
   ; decode!
-  cpi r16, 6
+  cpi r16, 7
   brsh print_zchar
 
+  ; check for the "wide char" flag (A2:6)
+  cpi r16, 6
+  brne PC+6
+  ; its 6, so check alphabet
+  mov r17, r3
+  cpi r17, 2
+  brne print_zchar
+
+  ; stack next two chars and deal with them
+  ldi r18, 2
+  rjmp done_zchar
+
   ; handle control char
-  ; XXX might this benefit from being a jump table?
   tst r16
   brne PC+4
 
@@ -2094,6 +2122,39 @@ next_zchar:
 
   rjmp done_zchar
 
+print_wide_zchar:
+
+  ; take two 5-bit items off stack
+  pop r16
+  pop r17
+
+  ; r17      r16
+  ; ---xxxxx ---xxxxx
+
+  ; bring bottom bits up
+  lsl r16
+  lsl r16
+  lsl r16
+
+  ; r17      r16
+  ; ---xxxxx xxxxx000
+
+  ; rotate top bits down into single byte
+  lsr r17
+  ror r16
+  lsr r17
+  ror r16
+  lsr r17
+  ror r16
+
+  ; r17      r16
+  ; 000---xx xxxxxxxx
+
+  ; print it and go again
+  rcall usart_tx_byte
+
+  rjmp done_zchar
+
 print_zchar:
 
   ; compute alphabet offset
@@ -2125,11 +2186,18 @@ print_zchar:
 
 done_zchar:
   dec r19
-  brne next_zchar
+  breq PC+2
+  rjmp next_zchar
 
   ; if this wasn't the last word, go get another!
   brts PC+2
   rjmp next_zchar_word
+
+  ; if we ended mid wide-byte, then drop the single sitting on the stack
+  ; shouldn't happen but we can't recover if we get this wrong
+  cpi r18, 1
+  brne PC+2
+  pop r16
 
   ret
 
