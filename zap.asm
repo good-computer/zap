@@ -1953,12 +1953,19 @@ get_attribute_pointer:
   ; get attribute number back
   pop r17
 
-  ; skip attribute bytes until we get to the right one
-  cpi r17, 8
-  brlo PC+4
-  adiw YL, 1
-  subi r17, 8
-  rjmp PC-4
+  ; divide attribute number by 8 to get number of bytes to skip
+  mov r16, r17
+  lsr r16
+  lsr r16
+  lsr r16
+
+  ; and skip them
+  add YL, r16
+  brcc PC+2
+  inc YH
+
+  ; take bottom bits to compute mask
+  andi r17, 0x7
 
   ; start at top bit
   ldi r16, 0x80
