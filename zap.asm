@@ -477,7 +477,7 @@ op_0_table:
 op_1_table:
   rjmp op_jz         ; jz a ?(label)
   rjmp unimpl        ; get_sibling object -> (result) ?(label)
-  rjmp unimpl        ; get_child object -> (result) ?(label)
+  rjmp op_get_child  ; get_child object -> (result) ?(label)
   rjmp op_get_parent ; get_parent object -> (result)
   rjmp unimpl        ; get_prop_len property-address -> (result)
   rjmp unimpl        ; inc (variable)
@@ -608,6 +608,61 @@ op_jz:
   brne PC+2
 
   set
+
+  rjmp branch_generic
+
+
+; get_child object -> (result) ?(label)
+op_get_child:
+
+  ; null object check
+  tst r2
+  brne PC+5
+  tst r3
+  brne PC+3
+  clt
+  rjmp branch_generic
+
+  ; close ram
+  rcall ram_end
+
+  ; get the object pointer
+  mov r16, r2
+  rcall get_object_pointer
+
+  ; add 4 bytes for child number
+  adiw YL, 6
+
+  ; open ram at object child number
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read child number
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; default not found, no branch
+  clt
+
+  ; did we find it?
+  tst r16
+  breq PC+6
+
+  ; found, so stack it
+  mov r0, r16
+  clr r1
+  clr r16 ; var 0
+  rcall store_variable
+
+  ; take branch
+  set
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
 
   rjmp branch_generic
 
