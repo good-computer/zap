@@ -493,7 +493,7 @@ op_2_table:
   rjmp unimpl       ; [nonexistent]
   rjmp op_je        ; je a b ?(label)
   rjmp unimpl       ; jl a b ?(label)
-  rjmp unimpl       ; jg a b ?(label)
+  rjmp op_jg        ; jg a b ?(label)
   rjmp unimpl       ; dec_chk (variable) value ?(label)
   rjmp op_inc_chk   ; inc_chk (variable) value ?(label)
   rjmp op_jin       ; jin obj1 obj2 ?(label)
@@ -900,6 +900,19 @@ op_je:
   set
 
   ; oof
+  rjmp branch_generic
+
+
+; jg a b ?(label)
+op_jg:
+
+  ; reverse compare so we can avoid an extra equality check
+  clt
+  cp r4, r2
+  cpc r5, r3
+  brsh PC+2
+  set
+
   rjmp branch_generic
 
 
