@@ -136,6 +136,9 @@ main:
   ldi XL, low(z_stack_top)
   ldi XH, high(z_stack_top)
 
+  ; zero argp as well, sorta meaningless in main but its where we expect it
+  movw z_argp_l, XL
+
   ; load header
   clr r16
   clr r17
