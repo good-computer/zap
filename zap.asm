@@ -496,7 +496,7 @@ op_2_table:
   rjmp unimpl       ; jg a b ?(label)
   rjmp unimpl       ; dec_chk (variable) value ?(label)
   rjmp op_inc_chk   ; inc_chk (variable) value ?(label)
-  rjmp unimpl       ; jin obj1 obj2 ?(label)
+  rjmp op_jin       ; jin obj1 obj2 ?(label)
   rjmp unimpl       ; test bitmap flags ?(label)
   rjmp unimpl       ; or a b -> (result)
   rjmp op_and       ; and a b -> (result)
@@ -928,6 +928,53 @@ op_inc_chk:
   rcall store_variable
 
   ; complete branch
+  rjmp branch_generic
+
+
+; jin obj1 obj2 ?(label)
+op_jin:
+  ; get_parent obj1 ST
+  ; je ST obj2
+
+  ; null object check
+  tst r2
+  brne PC+5
+  tst r3
+  brne PC+3
+  clt
+  rjmp branch_generic
+
+  ; close ram
+  rcall ram_end
+
+  ; get the object pointer
+  mov r16, r2
+  rcall get_object_pointer
+
+  ; add 4 bytes for parent number
+  adiw YL, 4
+
+  ; open ram at object parent number
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read parent number
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; compare
+  clt
+  cp r16, r4
+  brne PC+2
+  set
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
   rjmp branch_generic
 
 
