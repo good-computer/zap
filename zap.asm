@@ -811,13 +811,59 @@ op_jump:
 
 ; je a b ?(label)
 op_je:
-  ; compare
+  ; assume no match
+  clt
+
+  ; initial compare on already-decoded args
   cp r2, r4
   cpc r3, r5
-
+  brne PC+3
   set
+  rjmp branch_generic
+
+  ; more args?
+  mov r17, z_argtype
+  andi r17, 0xf
+  cpi r17, 0xf
+  brne PC+2
+
+  ; nope
+  rjmp branch_generic
+
+  ; more args! set up for arg decode
+  lsl r17
+  lsl r17
+  lsl r17
+  lsl r17
+  sbr r17, 0xf
+
+  ; first arg
+  rcall decode_arg
+
+  ; compare
+  cp r2, r0
+  cpc r3, r1
+  brne PC+3
+  set
+  rjmp branch_generic
+
+  ; any more?
+  mov r16, r17
+  andi r16, 0xc0
+  cpi r16, 0xc0
   breq PC+2
-  clt
+  rjmp branch_generic
+
+  ; second arg
+  rcall decode_arg
+
+  ; compare
+  cp r2, r0
+  cp r3, r1
+  brne PC+2
+  set
+
+  ; oof
   rjmp branch_generic
 
 
