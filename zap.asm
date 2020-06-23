@@ -31,6 +31,10 @@
 .def z_last_pc_l = r14
 .def z_last_pc_h = r15
 
+; last opcode and argtype (for debugging)
+.def z_last_opcode = r13
+.def z_last_argtype = r12
+
 
 .cseg
 .org 0x0000
@@ -196,6 +200,9 @@ decode_op:
   ; get opcode
   rcall ram_read_byte
   adiw z_pc_l, 1
+
+  ; record opcode for reporting
+  mov z_last_opcode, r16
 
   ;push r16
   ;rcall usart_tx_byte_hex
@@ -438,6 +445,9 @@ run_op:
   ; r21: type byte
   ; Z: op table
   ; args in r2:r3, r4:r5, r6:r7, r8:r9
+
+  ; record argtype for reporting
+  mov z_last_argtype, r21
 
   add ZL, r20
   brcc PC+2
@@ -1544,19 +1554,19 @@ dump:
   ldi ZL, low(text_opcode*2)
   ldi ZH, high(text_opcode*2)
   rcall usart_print_static
-  mov r16, r20
+  mov r16, z_last_opcode
   rcall usart_tx_byte_hex
   rcall usart_newline
 
   ldi ZL, low(text_argtype*2)
   ldi ZH, high(text_argtype*2)
   rcall usart_print_static
-  mov r16, r21
+  mov r16, z_last_argtype
   rcall usart_tx_byte_hex
   rcall usart_newline
 
   ; XXX roll this up
-  mov r16, r21
+  mov r16, z_last_argtype
   andi r16, 0xc0
   cpi r16, 0xc0
   breq dump_done
@@ -1569,7 +1579,7 @@ dump:
   rcall usart_tx_byte_hex
   rcall usart_newline
 
-  mov r16, r21
+  mov r16, z_last_argtype
   andi r16, 0x30
   cpi r16, 0x30
   breq dump_done
@@ -1582,7 +1592,7 @@ dump:
   rcall usart_tx_byte_hex
   rcall usart_newline
 
-  mov r16, r21
+  mov r16, z_last_argtype
   andi r16, 0x0c
   cpi r16, 0x0c
   breq dump_done
