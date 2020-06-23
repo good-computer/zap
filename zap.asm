@@ -817,14 +817,8 @@ op_ret:
   clr r18
   rcall ram_read_start
 
-  ; get return var
-  ld r16, X+
-
-  ; store value there
-  movw r0, r2
-  rcall store_variable
-
-  rjmp decode_op
+  ; PC now at return var for previous instruction, and we can return
+  rjmp store_op_result
 
 
 ; jump ?(label)
@@ -1287,11 +1281,6 @@ op_sub:
 
 ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
 op_call:
-
-  ; take return var and stack it, for return
-  rcall ram_read_byte
-  adiw z_pc_l, 1
-  st -X, r16
 
   ; close current rem read (instruction)
   rcall ram_end
