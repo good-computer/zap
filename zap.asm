@@ -472,22 +472,22 @@ op_0_table:
   rjmp unimpl        ; [v5] piracy ?(label)
 
 op_1_table:
-  rjmp op_jz         ; jz a ?(label)
-  rjmp unimpl        ; get_sibling object -> (result) ?(label)
-  rjmp op_get_child  ; get_child object -> (result) ?(label)
-  rjmp op_get_parent ; get_parent object -> (result)
-  rjmp unimpl        ; get_prop_len property-address -> (result)
-  rjmp unimpl        ; inc (variable)
-  rjmp unimpl        ; dec (variable)
-  rjmp unimpl        ; print_addr byte-address-of-string
-  rjmp unimpl        ; [v4] call_1s routine -> (result)
-  rjmp unimpl        ; remove_obj object
-  rjmp op_print_obj  ; print_obj object
-  rjmp op_ret        ; ret value
-  rjmp op_jump       ; jump ?(label)
-  rjmp unimpl        ;  print_paddr packed-address-of-string
-  rjmp unimpl        ; load (variable) -> result
-  rjmp unimpl        ; not value -> (result) [v5 call_1n routine]
+  rjmp op_jz          ; jz a ?(label)
+  rjmp op_get_sibling ; get_sibling object -> (result) ?(label)
+  rjmp op_get_child   ; get_child object -> (result) ?(label)
+  rjmp op_get_parent  ; get_parent object -> (result)
+  rjmp unimpl         ; get_prop_len property-address -> (result)
+  rjmp unimpl         ; inc (variable)
+  rjmp unimpl         ; dec (variable)
+  rjmp unimpl         ; print_addr byte-address-of-string
+  rjmp unimpl         ; [v4] call_1s routine -> (result)
+  rjmp unimpl         ; remove_obj object
+  rjmp op_print_obj   ; print_obj object
+  rjmp op_ret         ; ret value
+  rjmp op_jump        ; jump ?(label)
+  rjmp unimpl         ;  print_paddr packed-address-of-string
+  rjmp unimpl         ; load (variable) -> result
+  rjmp unimpl         ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
   rjmp unimpl       ; [nonexistent]
@@ -623,8 +623,19 @@ op_jz:
   rjmp branch_generic
 
 
+; get_sibling object -> (result) ?(label)
+op_get_sibling:
+  ; 5 byte offset for sibling
+  ldi r17, 5
+  rjmp get_child_or_sibling
+
 ; get_child object -> (result) ?(label)
 op_get_child:
+  ; 6 byte offset for sibling
+  ldi r17, 6
+  ; fall through
+
+get_child_or_sibling:
 
   ; null object check
   tst r2
@@ -642,19 +653,25 @@ op_get_child:
   ; close ram
   rcall ram_end
 
+  ; save pointer offset
+  push r17
+
   ; get the object pointer
   mov r16, r2
   rcall get_object_pointer
 
-  ; add 6 bytes for child number
-  adiw YL, 6
+  ; add offset to child/sibling pointer
+  pop r16
+  add YL, r16
+  brcc PC+2
+  inc YH
 
-  ; open ram at object child number
+  ; open ram at wanted object number
   movw r16, YL
   clr r18
   rcall ram_read_start
 
-  ; read child number
+  ; read wanted object number
   rcall ram_read_byte
 
   rcall ram_end
