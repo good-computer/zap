@@ -641,7 +641,7 @@ op_get_child:
   mov r16, r2
   rcall get_object_pointer
 
-  ; add 4 bytes for child number
+  ; add 6 bytes for child number
   adiw YL, 6
 
   ; open ram at object child number
