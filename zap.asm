@@ -1556,13 +1556,13 @@ branch_check_invert:
   brne PC+2
 
   ; 0, return false
-  rjmp unimpl
+  rjmp op_rfalse
 
   cpi r18, 1
   brne PC+2
 
   ; 1, return true
-  rjmp unimpl
+  rjmp op_rtrue
 
   ; add offset to PC
   add z_pc_l, r18
