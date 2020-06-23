@@ -1631,6 +1631,7 @@ store_op_result:
 ; common branch implementation
 ; call with T set if condition was true, clear if false
 branch_generic:
+
   ; get branch arg
   rcall ram_read_byte
   adiw z_pc_l, 1
@@ -1685,10 +1686,9 @@ branch_check_invert:
   ; close ram
   rcall ram_end
 
-  ; XXX consider "fast return" cases
+  ; consider "fast return" cases
   tst r19
   brne PC+7
-
   tst r18
   brne PC+2
 
