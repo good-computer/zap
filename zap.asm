@@ -510,7 +510,7 @@ op_2_table:
   rjmp unimpl       ; insert_obj object destination
   rjmp op_loadw     ; loadw array word-index -> (result)
   rjmp op_loadb     ; loadb array byte-index -> (result)
-  rjmp unimpl       ; get_prop object property -> (result)
+  rjmp op_get_prop  ; get_prop object property -> (result)
   rjmp unimpl       ; get_prop_addr object property -> (result)
   rjmp unimpl       ; get_next_prop object property -> (result)
   rjmp op_add       ; add a b -> (result)
@@ -992,6 +992,66 @@ op_loadb:
   rcall ram_read_start
 
   ; done, store value
+  rjmp store_op_result
+
+
+; get_prop object property -> (result)
+op_get_prop:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp store_op_result
+
+  ; close ram
+  rcall ram_end
+
+  ; find the property value
+  mov r16, r2
+  mov r17, r4
+  rcall get_object_property_pointer
+
+  tst r16
+  brne PC+2
+
+  ; XXX not found, load from defaults
+  rjmp unimpl
+
+  ; zero response to cover all cases
+  clr r2
+  clr r3
+
+  ; length two?
+  cpi r16, 2
+  brne PC+5
+
+  ; read two bytes and swap
+  rcall ram_read_pair
+  mov r3, r16
+  mov r2, r17
+  rjmp PC+5
+
+  ; length one?
+  cpi r16, 1
+  brlo PC+3
+
+  ; read one as low byte
+  rcall ram_read_byte
+  mov r2, r16
+
+  ; anything other length is undefined, so we will just return zero
+
+  ; done read
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; return!
   rjmp store_op_result
 
 
