@@ -640,6 +640,10 @@ op_get_child:
 
 get_child_or_sibling:
 
+  ; get target var
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+
   ; null object check
   tst r2
   brne PC+5
@@ -648,13 +652,11 @@ get_child_or_sibling:
   clt
   rjmp branch_generic
 
-  ; get target var and stash it
-  rcall ram_read_byte
-  adiw z_pc_l, 1
-  push r16
-
   ; close ram
   rcall ram_end
+
+  ; push target var number
+  push r16
 
   ; save pointer offset
   push r17
@@ -664,8 +666,8 @@ get_child_or_sibling:
   rcall get_object_pointer
 
   ; add offset to child/sibling pointer
-  pop r16
-  add YL, r16
+  pop r17
+  add YL, r17
   brcc PC+2
   inc YH
 
@@ -682,6 +684,9 @@ get_child_or_sibling:
   ; default not found, no branch
   clt
 
+  ; get var number back
+  pop r17
+
   ; did we find it?
   tst r16
   breq PC+6
@@ -689,7 +694,7 @@ get_child_or_sibling:
   ; found, so stack it
   mov r0, r16
   clr r1
-  pop r16 ; get var number back
+  mov r16, r17
   rcall store_variable
 
   ; take branch
