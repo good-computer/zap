@@ -634,6 +634,11 @@ op_get_child:
   clt
   rjmp branch_generic
 
+  ; get target var and stash it
+  rcall ram_read_byte
+  adiw z_pc_l, 1
+  push r16
+
   ; close ram
   rcall ram_end
 
@@ -664,7 +669,7 @@ op_get_child:
   ; found, so stack it
   mov r0, r16
   clr r1
-  clr r16 ; var 0
+  pop r16 ; get var number back
   rcall store_variable
 
   ; take branch
