@@ -27,6 +27,10 @@
 .def z_argp_l = r22
 .def z_argp_h = r23
 
+; current op and argtype
+.def z_opcode = r20
+.def z_argtype = r21
+
 ; start of last instruction (for debugging)
 .def z_last_pc_l = r14
 .def z_last_pc_h = r15
@@ -216,8 +220,8 @@ decode_op:
   ; 11 1  xxxxx: variable op (Vop, type byte)
 
   ; working towards:
-  ; r20: opcode
-  ; r21: type byte (4x2bits)
+  ; z_opcode: opcode
+  ; z_argtype: type byte (4x2bits)
   ; on codepath for lookup for proper instruction type
 
   ; 0xxxxxxx: "long" op
@@ -231,8 +235,8 @@ decode_op:
   ; 11axxxxx: "variable" op
 
   ; bottom five bits are opcode
-  mov r20, r16
-  andi r20, 0x1f
+  mov z_opcode, r16
+  andi z_opcode, 0x1f
 
   ; take optype bit
   bst r16, 5
@@ -240,10 +244,10 @@ decode_op:
   ; type byte follows
   rcall ram_read_byte
   adiw z_pc_l, 1
-  mov r21, r16
+  mov z_argtype, r16
 
   ; save type byte
-  push r21
+  push z_argtype
 
   ; bit 5 clear=2op, set=vop
   brts decode_op_variable_vop
@@ -267,28 +271,28 @@ decode_op_variable_vop:
 
   ; vop, take up to four
   ; XXX loop and write to ramregs?
-  mov r16, r21
+  mov r16, z_argtype
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
   rcall decode_arg
   movw r2, r0
 
-  mov r16, r21
+  mov r16, z_argtype
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
   rcall decode_arg
   movw r4, r0
 
-  mov r16, r21
+  mov r16, z_argtype
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
   rcall decode_arg
   movw r6, r0
 
-  mov r16, r21
+  mov r16, z_argtype
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
@@ -298,38 +302,38 @@ decode_op_variable_vop:
 decode_op_variable_done:
 
   ; restore type byte
-  pop r21
+  pop z_argtype
 
   rjmp run_op
 
 decode_op_long:
   ; bottom five bits are opcode
-  mov r20, r16
-  andi r20, 0x1f
+  mov z_opcode, r16
+  andi z_opcode, 0x1f
 
   ; this is a 2op, so %11 for bottom two args
-  ldi r21, 0xf
+  ldi z_argtype, 0xf
 
   ; type bit for first arg
   bst r16, 6
   brts PC+3
   ; %0 -> %01 (byte constant)
-  sbr r21, 0x40
+  sbr z_argtype, 0x40
   rjmp PC+2
   ; %1 -> %10 (variable number)
-  sbr r21, 0x80
+  sbr z_argtype, 0x80
 
   ; type bit for second arg
   bst r16, 5
   brts PC+3
   ; %0 -> %01 (byte constant)
-  sbr r21, 0x10
+  sbr z_argtype, 0x10
   rjmp PC+2
   ; %1 -> %10 (variable number)
-  sbr r21, 0x20
+  sbr z_argtype, 0x20
 
   ; save type byte
-  push r21
+  push z_argtype
 
   ; ready 2op lookup
   ldi ZL, low(op_2_table)
@@ -342,14 +346,14 @@ decode_op_long:
   movw r4, r0
 
   ; restore type byte
-  pop r21
+  pop z_argtype
 
   rjmp run_op
 
 decode_op_short:
   ; bottom four bits are opcode
-  mov r20, r16
-  andi r20, 0xf
+  mov z_opcode, r16
+  andi z_opcode, 0xf
 
   ; 1op (or 0op), type in bits 4 & 5, shift up to 6 & 7
   lsl r16
@@ -357,7 +361,7 @@ decode_op_short:
 
   ; no-arg the remainder
   sbr r16, 0x3f
-  mov r21, r16
+  mov z_argtype, r16
 
   ; test first arg, none=0op, something=1op
   andi r16, 0xc0
@@ -374,34 +378,34 @@ decode_op_short:
   ldi ZH, high(op_1_table)
 
   ; save type byte
-  push r21
+  push z_argtype
 
   ; 1op, take one
   rcall decode_arg
   movw r2, r0
 
   ; restore type byte
-  pop r21
+  pop z_argtype
 
   rjmp run_op
 
 
 ; take the next arg from PC
 ; inputs:
-;   r21: arg type byte, %wwxxyyzz
+;   z_argtype: arg type byte, %wwxxyyzz
 ; outputs:
 ;   r0:r1: decoded arg (low:high)
 decode_arg:
 
   ; take top two bits
   clr r16
-  lsl r21
+  lsl z_argtype
   rol r16
-  lsl r21
+  lsl z_argtype
   rol r16
 
   ; set bottom two bits, so we always have an end state
-  sbr r21, 0x3
+  sbr z_argtype, 0x3
 
   ; %00: word constant
   cpi r16, 0x0
@@ -443,15 +447,15 @@ decode_byte_constant:
 
 run_op:
 
-  ; r20: opcode
-  ; r21: type byte
+  ; z_opcode: opcode
+  ; z_argtype: type byte
   ; Z: op table
   ; args in r2:r3, r4:r5, r6:r7, r8:r9
 
   ; record argtype for reporting
-  mov z_last_argtype, r21
+  mov z_last_argtype, z_argtype
 
-  add ZL, r20
+  add ZL, z_opcode
   brcc PC+2
   inc ZH
 
@@ -1205,12 +1209,12 @@ op_call_set_arg:
   breq op_call_args_ready
 
   ; shift type down two (doing first, to throw away first arg which is raddr)
-  lsl r21
-  lsl r21
-  sbr r21, 0x3
+  lsl z_argtype
+  lsl z_argtype
+  sbr z_argtype, 0x3
 
   ; do we have an arg
-  mov r16, r21
+  mov r16, z_argtype
   andi r16, 0xc0
   cpi r16, 0xc0
   breq op_call_default_args
@@ -1742,7 +1746,7 @@ dump:
   rcall usart_tx_byte_hex
   rcall usart_newline
 
-  mov r16, r21
+  mov r16, z_argtype
   andi r16, 0x03
   cpi r16, 0x03
   breq dump_done
