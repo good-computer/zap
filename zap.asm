@@ -246,9 +246,6 @@ decode_op:
   adiw z_pc_l, 1
   mov z_argtype, r16
 
-  ; save type byte
-  push z_argtype
-
   ; bit 5 clear=2op, set=vop
   brts decode_op_variable_vop
 
@@ -257,12 +254,13 @@ decode_op:
   ldi ZH, high(op_2_table)
 
   ; 2op, take two
+  mov r17, z_argtype
   rcall decode_arg
   movw r2, r0
   rcall decode_arg
   movw r4, r0
 
-  rjmp decode_op_variable_done
+  rjmp run_op
 
 decode_op_variable_vop:
   ; ready vop lookup
@@ -271,28 +269,30 @@ decode_op_variable_vop:
 
   ; vop, take up to four
   ; XXX loop and write to ramregs?
-  mov r16, z_argtype
+  mov r17, z_argtype
+
+  mov r16, r17
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
   rcall decode_arg
   movw r2, r0
 
-  mov r16, z_argtype
+  mov r16, r17
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
   rcall decode_arg
   movw r4, r0
 
-  mov r16, z_argtype
+  mov r16, r17
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
   rcall decode_arg
   movw r6, r0
 
-  mov r16, z_argtype
+  mov r16, r17
   andi r16, 0xc0
   cpi r16, 0xc0
   breq decode_op_variable_done
@@ -300,10 +300,6 @@ decode_op_variable_vop:
   movw r8, r0
 
 decode_op_variable_done:
-
-  ; restore type byte
-  pop z_argtype
-
   rjmp run_op
 
 decode_op_long:
@@ -332,21 +328,16 @@ decode_op_long:
   ; %1 -> %10 (variable number)
   sbr z_argtype, 0x20
 
-  ; save type byte
-  push z_argtype
-
   ; ready 2op lookup
   ldi ZL, low(op_2_table)
   ldi ZH, high(op_2_table)
 
   ; 2op, take two
+  mov r17, z_argtype
   rcall decode_arg
   movw r2, r0
   rcall decode_arg
   movw r4, r0
-
-  ; restore type byte
-  pop z_argtype
 
   rjmp run_op
 
@@ -377,35 +368,32 @@ decode_op_short:
   ldi ZL, low(op_1_table)
   ldi ZH, high(op_1_table)
 
-  ; save type byte
-  push z_argtype
-
   ; 1op, take one
+  mov r17, z_argtype
   rcall decode_arg
   movw r2, r0
-
-  ; restore type byte
-  pop z_argtype
 
   rjmp run_op
 
 
 ; take the next arg from PC
 ; inputs:
-;   z_argtype: arg type byte, %wwxxyyzz
+;   r17: arg type byte, %wwxxyyzz
+;        top two bytes will be considered
+;        rotated out, for repeated calls
 ; outputs:
 ;   r0:r1: decoded arg (low:high)
 decode_arg:
 
   ; take top two bits
   clr r16
-  lsl z_argtype
+  lsl r17
   rol r16
-  lsl z_argtype
+  lsl r17
   rol r16
 
   ; set bottom two bits, so we always have an end state
-  sbr z_argtype, 0x3
+  sbr r17, 0x3
 
   ; %00: word constant
   cpi r16, 0x0
@@ -425,7 +413,10 @@ decode_variable_number:
   ; variable number
   rcall ram_read_byte
   adiw z_pc_l, 1
-  rjmp load_variable
+  push r17
+  rcall load_variable
+  pop r17
+  ret
 
 decode_word_constant:
   ; word constant, take two bytes
