@@ -1013,12 +1013,32 @@ op_get_prop:
   mov r17, r4
   rcall get_object_property_pointer
 
+  ; not found?
   tst r16
-  brne PC+2
+  brne get_prop_value
 
-  ; XXX not found, load from defaults
-  rjmp unimpl
+  ; prep load from defaults
 
+  ; object table location
+  lds r16, z_header+0xb
+  lds r17, z_header+0xa
+
+  ; words, so double property number to make an offset
+  lsl r4
+
+  ; offset into default table
+  add r16, r4
+  brcc PC+2
+  inc r17
+
+  ; ready read
+  clr r18
+  rcall ram_read_start
+
+  ; two-byte length
+  ldi r16, 2
+
+get_prop_value:
   ; zero response to cover all cases
   clr r2
   clr r3
