@@ -242,8 +242,11 @@ decode_op:
   adiw z_pc_l, 1
   mov r21, r16
 
+  ; save type byte
+  push r21
+
   ; bit 5 clear=2op, set=vop
-  brts PC+8
+  brts decode_op_variable_vop
 
   ; ready 2op lookup
   ldi ZL, low(op_2_table)
@@ -254,46 +257,45 @@ decode_op:
   movw r2, r0
   rcall decode_arg
   movw r4, r0
-  rjmp run_op
 
+  rjmp decode_op_variable_done
+
+decode_op_variable_vop:
   ; ready vop lookup
   ldi ZL, low(op_v_table)
   ldi ZH, high(op_v_table)
-
-  ; push type byte
-  push r21
 
   ; vop, take up to four
   ; XXX loop and write to ramregs?
   mov r16, r21
   andi r16, 0xc0
   cpi r16, 0xc0
-  breq decode_op_short_done
+  breq decode_op_variable_done
   rcall decode_arg
   movw r2, r0
 
   mov r16, r21
   andi r16, 0xc0
   cpi r16, 0xc0
-  breq decode_op_short_done
+  breq decode_op_variable_done
   rcall decode_arg
   movw r4, r0
 
   mov r16, r21
   andi r16, 0xc0
   cpi r16, 0xc0
-  breq decode_op_short_done
+  breq decode_op_variable_done
   rcall decode_arg
   movw r6, r0
 
   mov r16, r21
   andi r16, 0xc0
   cpi r16, 0xc0
-  breq decode_op_short_done
+  breq decode_op_variable_done
   rcall decode_arg
   movw r8, r0
 
-decode_op_short_done:
+decode_op_variable_done:
 
   ; restore type byte
   pop r21
