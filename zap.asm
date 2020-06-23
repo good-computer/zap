@@ -1791,7 +1791,7 @@ get_attribute_pointer:
 ; outputs:
 ;   Y: location of property value
 ;   r16: length of property (0 if not found)
-; leaves ram open for read at property value
+; if found, leaves ram open for read at property value
 get_object_property_pointer:
 
   ; save property number
