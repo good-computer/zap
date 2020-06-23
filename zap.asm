@@ -454,22 +454,22 @@ run_op:
 
 
 op_0_table:
-  rjmp op_rtrue    ; rtrue
-  rjmp op_rfalse   ; rfalse
-  rjmp op_print    ; print (literal_string)
-  rjmp unimpl      ; print_ret (literal-string)
-  rjmp unimpl      ; nop
-  rjmp unimpl      ; save ?(label) [v4 save -> (result)] [v5 illegal]
-  rjmp unimpl      ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
-  rjmp unimpl      ; restart
-  rjmp unimpl      ; ret_popped
-  rjmp unimpl      ; pop [v5/6 catch -> (result)]
-  rjmp unimpl      ; quit
-  rjmp op_new_line ; new_line
-  rjmp unimpl      ; [v3] show_status [v4 illegal]
-  rjmp unimpl      ; [v3] verify ?(label)
-  rjmp unimpl      ; [v5] [extended opcode]
-  rjmp unimpl      ; [v5] piracy ?(label)
+  rjmp op_rtrue      ; rtrue
+  rjmp op_rfalse     ; rfalse
+  rjmp op_print      ; print (literal_string)
+  rjmp unimpl        ; print_ret (literal-string)
+  rjmp unimpl        ; nop
+  rjmp unimpl        ; save ?(label) [v4 save -> (result)] [v5 illegal]
+  rjmp unimpl        ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
+  rjmp unimpl        ; restart
+  rjmp op_ret_popped ; ret_popped
+  rjmp unimpl        ; pop [v5/6 catch -> (result)]
+  rjmp unimpl        ; quit
+  rjmp op_new_line   ; new_line
+  rjmp unimpl        ; [v3] show_status [v4 illegal]
+  rjmp unimpl        ; [v3] verify ?(label)
+  rjmp unimpl        ; [v5] [extended opcode]
+  rjmp unimpl        ; [v5] piracy ?(label)
 
 op_1_table:
   rjmp op_jz         ; jz a ?(label)
@@ -587,6 +587,20 @@ op_print:
   adc z_pc_h, YH
 
   rjmp decode_op
+
+
+; ret_popped
+op_ret_popped:
+
+  ; load var 0 (stack pull)
+  clr r16
+  rcall load_variable
+
+  ; move to arg1
+  movw r2, r0
+
+  ; and return
+  rjmp op_ret
 
 
 ; new_line
