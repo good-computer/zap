@@ -687,17 +687,15 @@ get_child_or_sibling:
   ; get var number back
   pop r17
 
-  ; did we find it?
-  tst r16
-  breq PC+6
-
-  ; found, so stack it
+  ; store result
   mov r0, r16
   clr r1
   mov r16, r17
   rcall store_variable
 
-  ; take branch
+  ; take branch if we found it
+  tst r16
+  breq PC+2
   set
 
   ; reset ram
