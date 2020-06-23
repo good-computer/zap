@@ -13,11 +13,11 @@
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
 ; SP <-----------
 ;    ... LH LH LH
-.equ z_stack_top = 0x03d0
+.equ z_stack_top = 0x0400
 
 ; input buffer
-.equ input_buffer     = 0x03d0
-.equ input_buffer_end = 0x03ff
+.equ input_buffer     = 0x0400
+.equ input_buffer_end = 0x042f
 
 ; zmachine program counter
 .def z_pc_l = r24
