@@ -681,9 +681,6 @@ get_child_or_sibling:
 
   rcall ram_end
 
-  ; default not found, no branch
-  clt
-
   ; get var number back
   pop r17
 
@@ -694,7 +691,8 @@ get_child_or_sibling:
   rcall store_variable
 
   ; take branch if we found it
-  tst r16
+  clt
+  tst r0
   breq PC+2
   set
 
