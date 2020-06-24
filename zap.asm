@@ -925,6 +925,10 @@ op_inc_chk:
   brne PC+2
   inc r1
 
+  ; store value back
+  mov r16, r2
+  rcall store_variable
+
   ; compare backwards, for less-than test
   cp r4, r0
   cpc r5, r1
@@ -933,10 +937,6 @@ op_inc_chk:
   clt
   brsh PC+2
   set
-
-  ; store value back
-  mov r16, r2
-  rcall store_variable
 
   ; complete branch
   rjmp branch_generic
