@@ -250,22 +250,14 @@ decode_op:
   mov z_argtype, r16
 
   ; bit 5 clear=2op, set=vop
-  brts decode_op_variable_vop
+  brts PC+4
 
   ; ready 2op lookup
   ldi ZL, low(op_2_table)
   ldi ZH, high(op_2_table)
 
-  ; 2op, take two
-  mov r17, z_argtype
-  rcall decode_arg
-  movw r2, r0
-  rcall decode_arg
-  movw r4, r0
+  rjmp PC+3
 
-  rjmp run_op
-
-decode_op_variable_vop:
   ; ready vop lookup
   ldi ZL, low(op_v_table)
   ldi ZH, high(op_v_table)
@@ -848,52 +840,37 @@ op_je:
   ; assume no match
   clt
 
-  ; initial compare on already-decoded args
+  ; second arg
   cp r2, r4
   cpc r3, r5
   brne PC+3
   set
   rjmp branch_generic
 
-  ; more args?
-  mov r17, z_argtype
-  andi r17, 0xf
-  cpi r17, 0xf
+  ; third arg?
+  mov r16, z_argtype
+  andi r16, 0xc
+  cpi r16, 0xc
   brne PC+2
-
-  ; nope
   rjmp branch_generic
 
-  ; more args! set up for arg decode
-  lsl r17
-  lsl r17
-  lsl r17
-  lsl r17
-  sbr r17, 0xf
-
-  ; first arg
-  rcall decode_arg
-
-  ; compare
-  cp r2, r0
-  cpc r3, r1
+  ; compare with third
+  cp r2, r6
+  cpc r3, r7
   brne PC+3
   set
   rjmp branch_generic
 
-  ; any more?
-  mov r16, r17
-  andi r16, 0xc0
-  cpi r16, 0xc0
-  breq PC+2
+  ; fourth arg?
+  mov r16, z_argtype
+  andi r16, 0x3
+  cpi r16, 0x3
+  brne PC+2
   rjmp branch_generic
 
-  ; second arg
-  rcall decode_arg
-
-  ; compare
-  cp r2, r0
-  cp r3, r1
+  ; compare with fourth
+  cp r2, r8
+  cpc r3, r9
   brne PC+2
   set
 
