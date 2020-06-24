@@ -634,7 +634,7 @@ op_get_sibling:
 
 ; get_child object -> (result) ?(label)
 op_get_child:
-  ; 6 byte offset for sibling
+  ; 6 byte offset for child
   ldi r17, 6
   ; fall through
 
