@@ -2084,21 +2084,90 @@ prop_next:
 ; outputs:
 ;   Y: number of RAM bytes taken
 print_zstring:
+  rcall zstring_init
 
+print_next:
+  rcall zstring_next
+
+  ; done?
+  tst r16
+  brne PC+2
+
+  ; yep
+  rjmp zstring_done
+
+  ; high bit set means nothing to print, but more to take
+  brmi print_next
+
+  ; something printable!
+  rcall usart_tx_byte
+
+  ; start of newline?
+  cpi r16, 0xa
+  brne print_next
+
+  ; yes, finish it
+  ldi r16, 0xd
+  rcall usart_tx_byte
+
+  rjmp print_next
+
+
+; zstring decoder
+;
+; 1. call zstring_init
+; 2. call zstring_next
+;  2a. if r16 is 0, string is done and go to 3
+;  2b. if r16 bit 7 is set, last char was non-printable, go to 2
+;  2c. anything else, take r16 it (0xa indicates newline)
+; 3. call zstring_done
+;
+; state tracking (do not modify between calls)
+;   Y: number of RAM bytes advanced (for moving PC, see op_print)
+;   r10: lock alphabet
+;   r11: current alphabet
+;   r18: number of remaining chars to read for wide character
+;   r19: number of remaining chars in current word (0=new word will be read on next call)
+;   T: end-of-string flag, further calls to zstring_next will return 0
+
+zstring_init:
   ; clear byte count
   clr YL
   clr YH
 
   ; reset lock alphabet to A0
-  clr r2
+  clr r10
 
   ; reset current alphabet to A0
-  clr r3
+  clr r11
 
   ; handle decoded bytes directly, don't stack them
   clr r18
 
-next_zchar_word:
+  ; start char counter at 1, because we will dec and test before doing any
+  ; work, and this will bring it to zero forcing a word load
+  ldi r19, 1
+
+  ; probably not at end of string
+  clt
+
+  ; ready to go
+  ret
+
+zstring_next:
+
+  dec r19
+
+  ; start of new word?
+  brne next_zchar
+
+  ; was previous word the last one?
+  brtc PC+3
+
+  ; yes, so there's nothing else to do
+  clr r16
+  ret
+
   ; read the word
   rcall ram_read_pair
   adiw YL, 2
@@ -2135,49 +2204,52 @@ next_zchar:
 
   ; handline widechar?
   tst r18
-  breq PC+5
+  breq PC+6
 
   ; set it aside
-  push r16
+  st -X, r16
 
   ; got them all?
   dec r18
-  breq print_wide_zchar
+  breq convert_wide_zchar
 
-  ; nope, go again
-  rjmp done_zchar
+  ; nope, report non-printable
+  sbr r16, 0x80
+  ret
 
   ; decode!
   cpi r16, 7
-  brsh print_zchar
+  brsh convert_zchar
 
   ; check for the "wide char" flag (A2:6)
   cpi r16, 6
-  brne PC+6
+  brne PC+7
+
   ; its 6, so check alphabet
-  mov r17, r3
+  mov r17, r11
   cpi r17, 2
-  brne print_zchar
+  brne convert_zchar
 
   ; stack next two chars and deal with them
   ldi r18, 2
-  rjmp done_zchar
+
+  sbr r16, 0x80
+  ret
 
   ; handle control char
   tst r16
-  brne PC+4
+  brne PC+3
 
   ; 0: space
   ldi r16, ' '
-  rcall usart_tx_byte
-  rjmp done_zchar
+  ret
 
   cpi r16, 1
   brne PC+3
 
   ; 1: newline
-  rcall usart_newline
-  rjmp done_zchar
+  ldi r16, 0xa
+  ret
 
   ; 2-5: change alphabets
 
@@ -2189,30 +2261,31 @@ next_zchar:
   ; bit 0: clear=inc, set=dec
   sbrc r16, 0
   rjmp PC+3
-  inc r3
+  inc r11
   rjmp PC+2
-  dec r3
+  dec r11
 
-  ; clamp r3 to 0-2 (sigh)
-  mov r17, r3
+  ; clamp r11 to 0-2 (sigh)
+  mov r17, r11
   sbrc r17, 7
   ldi r17, 2
   cpi r17, 3
   brne PC+2
   ldi r17, 0
-  mov r3, r17
+  mov r11, r17
 
   ; bit 2: if set, also set lock
   sbrc r16, 2
-  mov r2, r3
+  mov r10, r11
 
-  rjmp done_zchar
+  sbr r16, 0x80
+  ret
 
-print_wide_zchar:
+convert_wide_zchar:
 
   ; take two 5-bit items off stack
-  pop r16
-  pop r17
+  ld r16, X+
+  ld r17, X+
 
   ; r17      r16
   ; ---xxxxx ---xxxxx
@@ -2236,15 +2309,13 @@ print_wide_zchar:
   ; r17      r16
   ; 000---xx xxxxxxxx
 
-  ; print it and go again
-  rcall usart_tx_byte
+  ; return it
+  ret
 
-  rjmp done_zchar
-
-print_zchar:
+convert_zchar:
 
   ; compute alphabet offset
-  mov r0, r3
+  mov r0, r11
   ldi r17, 26
   mul r0, r17
 
@@ -2263,27 +2334,21 @@ print_zchar:
   brcc PC+2
   inc ZH
 
-  ; load byte and print it
+  ; load byte
   lpm r16, Z
-  rcall usart_tx_byte
 
   ; reset to lock alphabet
-  mov r3, r2
+  mov r11, r10
 
-done_zchar:
-  dec r19
-  breq PC+2
-  rjmp next_zchar
+  ; got something to print
+  ret
 
-  ; if this wasn't the last word, go get another!
-  brts PC+2
-  rjmp next_zchar_word
-
+zstring_done:
   ; if we ended mid wide-byte, then drop the single sitting on the stack
   ; shouldn't happen but we can't recover if we get this wrong
   cpi r18, 1
   brne PC+2
-  pop r16
+  adiw XL, 1
 
   ret
 
