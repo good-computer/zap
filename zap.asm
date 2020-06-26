@@ -146,13 +146,13 @@ main:
   rcall ram_read_start
   ldi ZL, low(z_header)
   ldi ZH, high(z_header)
-  ldi r16, 0x40
+  ldi r16, 0x10
   rcall ram_read_bytes
   rcall ram_end
 
   ;ldi ZL, low(z_header)
   ;ldi ZH, high(z_header)
-  ;ldi r16, 0x40
+  ;ldi r16, 0x10
   ;clr r17
   ;rcall usart_tx_bytes_hex
 
