@@ -7,17 +7,27 @@
 ; stores in z-machine order (H:L)
 .equ z_global_vars = 0x0060
 
-; story file header
+; story file header (first 0x10 bytes)
 .equ z_header = 0x0240
+
+; temp space for separator list during input parsing
+.equ separator_buffer     = 0x0250
+.equ separator_buffer_end = 0x0258
+
+; temp space for expanding current dictionary word during input parsing
+.equ word_buffer     = 0x0258
+.equ word_buffer_end = 0x0260
+
 
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
 ; SP <-----------
 ;    ... LH LH LH
-.equ z_stack_top = 0x0400
+.equ z_stack_top = 0x03e0
 
 ; input buffer
-.equ input_buffer     = 0x0400
-.equ input_buffer_end = 0x042f
+; enough room for 0x44 requested by zork
+.equ input_buffer     = 0x03e0
+.equ input_buffer_end = 0x0430
 
 ; zmachine program counter
 .def z_pc_l = r24
@@ -526,7 +536,7 @@ op_v_table:
   rjmp op_storew     ; storew array word-index value
   rjmp unimpl        ; storeb array byte-index value
   rjmp op_put_prop   ; put_prop object property value
-  rjmp unimpl        ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
+  rjmp op_sread      ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
   rjmp op_print_char ; print_char output-character-code
   rjmp op_print_num  ; print_num value
   rjmp unimpl        ; random range -> (result)
@@ -1483,6 +1493,468 @@ op_put_prop:
   rcall ram_read_start
 
   rjmp decode_op
+
+
+; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
+op_sread:
+
+  ; close ram
+  rcall ram_end
+
+  ; write zero to parse buffer +1, this is count of parsed tokens, which starts at zero
+  movw r16, r4
+  inc r16
+  brne PC+2
+  inc r17
+  clr r18
+  rcall ram_write_start
+
+  ; write zero
+  clr r16
+  rcall ram_write_byte
+
+  rcall ram_end
+
+  ; setup to read buffer
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  ; read max length
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; clamp max buffer size to what we actually have internal memory for
+  ldi r17, low(input_buffer_end-input_buffer)
+  cp r16, r17
+  brlo PC+2
+  mov r16, r17
+
+  ; get a line
+  rcall usart_line_input
+
+  ; set up to write text buffer
+  movw r16, r2
+  inc r16
+  brne PC+2
+  inc r17
+  clr r18
+  rcall ram_write_start
+
+  ; copy text into memory, including trailing null
+  ldi ZL, low(input_buffer)
+  ldi ZH, high(input_buffer)
+
+  ld r16, Z+
+
+  ; convert to lowercase
+  cpi r16, 'A'
+  brlo PC+4
+  cpi r16, 'Z'+1
+  brsh PC+2
+  ori r16, 0x20 ; convert
+
+  rcall ram_write_byte
+  tst r16
+  brne PC-8
+
+  rcall ram_end
+
+  ; dictionary location
+  lds r16, z_header+0x9
+  lds r17, z_header+0x8
+  clr r18
+  rcall ram_read_start
+
+  ; number of word separators
+  rcall ram_read_byte
+  mov r17, r16
+
+  ; crash if theres more separators that we have room for
+  ; XXX this is sorta dumb, because we know zork only has three separators, and
+  ;     we don't have memory for a lot more, but lets try to do it right
+  cpi r17, low(separator_buffer_end-separator_buffer)
+  brlo PC+2
+  rjmp fatal
+
+  ; calculate and push location in ram of first dict entry
+  ; need this to reset ram each time around the loop
+  lds ZL, z_header+0x9
+  lds ZH, z_header+0x8
+
+  ; add number of separators
+  add ZL, r17
+  brcc PC+2
+  inc ZH
+
+  ; num separators (1) + entry length (1) + number of entries (2)
+  adiw ZL, 4
+
+  ; set aside for later
+  movw r12, ZL
+
+  ; make word separators into a null-terminated string
+  ldi ZL, low(separator_buffer)
+  ldi ZH, high(separator_buffer)
+
+  ; copy separators
+  tst r17
+  breq PC+5
+  rcall ram_read_byte
+  st Z+, r16
+  dec r17
+  brne PC-5
+
+  ; terminator
+  clr r16
+  st Z+, r16
+
+  ; size of dictionary entry
+  rcall ram_read_byte
+
+  ; reduce by 4 to get number of bytes to skip after each entry
+  subi r16, 4
+  push r16
+
+  ; read number of words
+  rcall ram_read_pair
+  mov r2, r17
+  mov r3, r16
+
+  ; start of input
+  ldi ZL, low(input_buffer)
+  ldi ZH, high(input_buffer)
+
+parse_next_input:
+  rcall ram_end
+
+  ; discard leading spaces
+  ld r16, Z
+  cpi r16, ' '
+  brne PC+3
+  adiw ZL, 1
+  rjmp PC-4
+
+  ; if after eating all the space we're now at null, then there's nothing left to parse
+  tst r16
+  brne PC+6
+
+  ; drop the skip count
+  pop r16
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; wow
+  rjmp decode_op
+
+  ; set input position aside to reload later
+  movw r6, ZL
+
+  ; set word count (eventual token) to zero
+  clr r8
+  clr r9
+
+  ; so the plan here is to read each dictionary word, decode it, then compare
+  ; it with the current input position. if it matches, then set the word number
+  ; as the token and go to the next one
+
+  ; get dict start back
+  movw r16, r12
+
+  ; prep for read
+  clr r18
+  rcall ram_read_start
+
+dict_word_next:
+  ; output space for word expansion
+  ldi ZL, low(word_buffer)
+  ldi ZH, high(word_buffer)
+
+  ; start expand
+  rcall zstring_init
+
+dict_char_next:
+  ; get a char
+  push ZL
+  push ZH
+  rcall zstring_next
+  pop ZH
+  pop ZL
+
+  ; done?
+  tst r16
+  breq dict_word_done
+
+  ; high bit set means nothing to output, but more to take
+  brmi PC+3
+
+  ; real char, store it
+  st Z+, r16
+
+  ; it seems that not all words have end markers, so we'll have figure it out
+  ; ourselves. if YL (count of bytes taken) is 4, and r19 (remaining chars in
+  ; current 2-byte word) is 0, then we're done
+  cpi YL, 4
+  brne dict_char_next
+  tst r19
+  brne dict_char_next
+
+dict_word_done:
+  rcall zstring_done
+
+  ; trailing null
+  clr r16
+  st Z, r16
+
+  ; walk back and zero all the 0x5 padding bytes
+  ld r17, -Z
+  cpi r17, 0x5
+  brne PC+3
+
+  st Z, r16
+  rjmp PC-4
+
+  ; ok. current word is in word_buffer, bring input pointer back to Z
+  movw ZL, r6
+
+  ; ready for word walk
+  ldi YL, low(word_buffer)
+  ldi YH, high(word_buffer)
+
+  ; get input byte and word byte
+  ld r16, Y+
+  ld r17, Z
+
+  ; compare
+  cp r16, r17
+  brne PC+5
+
+  ; reached the end of matchword, leave, so that we keep the nulls in registers for testing
+  tst r16
+  breq PC+3
+
+  ; advance input and compare next
+  adiw ZL, 1
+  rjmp PC-7
+
+  ; failed compare, lets find out why
+
+  ; get the skip count back off the stack. we'll re-push it before we loop, if we loop
+  pop r18
+
+  ; did we reach the end of the match word? if not, then there's no further
+  ; magic available: we just didn't match
+  tst r16
+  brne failed_match
+
+  ; if we're at the end of the word buffer, then this is full match on what
+  ; might be a longer word, but we're allowed to be ambiguous (because the
+  ; words in the dictionary are only six chars)
+  cpi YL, low(word_buffer+6)
+  brsh matched_word
+
+  ; are we at a separator?
+  tst r17
+  breq matched_word
+  cpi r17, ' '
+  breq matched_word
+
+  ; consider the declared separators
+  ldi ZL, low(separator_buffer)
+  ldi ZH, high(separator_buffer)
+
+  ; did we match one?
+  ld r16, Z+
+  cp r17, r16
+  breq matched_word
+
+  ; are there more separators?
+  tst r16
+  brne PC-4
+
+failed_match:
+
+  ; failed word match. prepare for next word
+
+  ; bring Z back to start
+  movw ZL, r6
+
+  ; inc word count
+  inc r8
+  brne PC+2
+  inc r9
+
+  ; have we reached the last one?
+  cp r2, r8
+  cpc r3, r9
+  breq failed_all_matches
+
+  ; push the skip count back
+  push r18
+
+  ; no, move ram forward to next word
+  mov r16, r18
+  rcall ram_skip_bytes
+
+  rjmp dict_word_next
+
+failed_all_matches:
+
+  ; we've tried every word in the dictionary and none matched, so we have to
+  ; record an empty token block
+  clr r10
+  clr r11
+  rjmp consume_up_to_separator
+
+matched_word:
+
+  ; now need to calculate the position of this in the dictionary
+
+  ; recalc entry size (skip+4)
+  mov r16, r18
+  ldi r17, 4
+  add r16, r17
+
+  ; multiply word number by entry size
+  mul r8, r16
+  movw r10, r0
+  mul r9, r16
+  add r11, r0
+
+  ; add location of first entry
+  add r10, r12
+  adc r11, r13
+
+  ; location of matched entry now in r11:r12
+
+consume_up_to_separator:
+  ; consume input up to next separator
+
+  ldi YL, low(separator_buffer)
+  ldi YH, high(separator_buffer)
+
+  ; get the byte
+  ld r16, Z
+
+  ; null? end of the world
+  tst r16
+  breq compute_text_position
+
+  ; space is the ultimate separator
+  cpi r16, ' '
+  breq compute_text_position
+
+  ; try declared separators
+  ld r17, Y+
+
+  ; ran out?
+  tst r17
+  breq PC+5
+
+  ; matched a separator?
+  cp r16, r17
+  breq compute_text_position
+
+  ; not a separator, advance and retry
+  adiw ZL, 1
+  rjmp consume_up_to_separator
+
+compute_text_position:
+
+  ; push the skip count back
+  push r18
+
+  ; start of input text is in r6:r7, end now in Z, so we can compute length
+  mov r0, ZL
+  sub r0, r6
+
+  ; and position
+  ldi r17, low(input_buffer)
+  mov r1, r6
+  sub r1, r17
+
+  ; set up to write the current block out to the word buffer
+  ldi YL, low(word_buffer)
+  ldi YH, high(word_buffer)
+
+  ; location of matching dictionary word
+  st Y+, r11
+  st Y+, r10
+
+  ; word length
+  st Y+, r0
+
+  ; word position
+  st Y+, r1
+
+  rcall ram_end
+
+  ; time to store it! parse buffer position is in r4:r5
+  movw r16, r4
+  clr r18
+  rcall ram_read_start
+
+  ; load max tokens and count of tokens
+  rcall ram_read_pair
+  rcall ram_end
+
+  ; if we're already out of token space, just drop it on the floor
+  cp r16, r17
+  breq word_done
+
+  ; set it aside
+  push r17
+
+  ; multiply token count by block size (4) to get offset
+  clr r16
+  lsl r17
+  rol r16
+  lsl r17
+  rol r16
+
+  ; add parse buffer addr
+  add r16, r4
+  adc r17, r5
+
+  ; +2 past max/count
+  ldi r18, 2
+  add r17, r18
+  brcc PC+2
+  inc r16
+
+  ; set up for write
+  clr r18
+  rcall ram_write_start
+
+  ldi YL, low(word_buffer)
+  ldi YH, high(word_buffer)
+  ldi r16, 4
+  rcall ram_write_bytes
+
+  rcall ram_end
+
+  ; set up to increment token count
+  movw r16, r4
+  inc r16
+  brne PC+2
+  inc r17
+  clr r18
+  rcall ram_write_start
+
+  ; bump and store it
+  pop r16
+  inc r16
+  rcall ram_write_byte
+
+  rcall ram_end
+
+word_done:
+  ; get some more!
+  rjmp parse_next_input
 
 
 ; print_char output-character-code
@@ -2587,10 +3059,16 @@ usart_newline:
 
 
 ; receive a line of input into the input buffer, with simple editing controls
+; inputs:
+  ; r16: max number of chars
 usart_line_input:
+  ldi ZL, low(input_buffer)
+  ldi ZH, high(input_buffer)
 
-  ldi XL, low(input_buffer)
-  ldi XH, high(input_buffer)
+  movw YL, ZL
+  add YL, r16
+  brcc PC+2
+  inc YH
 
 uli_next_char:
   rcall usart_rx_byte
@@ -2603,13 +3081,12 @@ uli_next_char:
   brsh uli_handle_control_char
 
   ; something printable, make sure there's room in the buffer for it
-  cpi XL, low(input_buffer_end)
-  brne PC+3
-  cpi XH, high(input_buffer_end)
-  breq uli_next_char
+  cp ZL, YL
+  cpc ZH, YH
+  brsh uli_next_char
 
   ; append to buffer and echo it
-  st X+, r16
+  st Z+, r16
   rcall usart_tx_byte
 
   rjmp uli_next_char
@@ -2632,7 +3109,7 @@ uli_handle_control_char:
 uli_do_enter:
   ; zero end of buffer
   clr r16
-  st X+, r16
+  st Z+, r16
 
   ; echo newline
   ldi r16, 0xa
@@ -2644,15 +3121,14 @@ uli_do_enter:
 
 uli_do_backspace:
   ; start-of-buffer check
-  cpi XL, low(input_buffer)
+  cpi ZL, low(input_buffer)
   brne PC+3
-  cpi XH, high(input_buffer)
+  cpi ZH, high(input_buffer)
   breq uli_next_char
 
   ; move buffer pointer back
-  subi XL, 1
-  brcc PC+2
-  dec XH
+  subi ZL, 1
+  sbci ZH, 0
 
   ; echo destructive backspace
   ldi r16, 0x08
@@ -2862,6 +3338,16 @@ ram_write_pair:
   out SPDR, r17
   sbis SPSR, SPIF
   rjmp PC-1
+  ret
+
+; skip bytes
+;   r16: number to skip
+ram_skip_bytes:
+  out SPDR, r16
+  sbis SPSR, SPIF
+  rjmp PC-1
+  dec r16
+  brne ram_skip_bytes
   ret
 
 
