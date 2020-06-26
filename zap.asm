@@ -112,16 +112,18 @@ boot:
   rcall usart_print_static
 
   ; wait for key
+boot_key:
   rcall usart_rx_byte
   mov r17, r16
 
-  rcall usart_newline
+  cpi r17, 0xd
+  breq boot
 
   cpi r17, 'r' ; run
   breq main
 
   cpi r17, 'l' ; load
-  brne boot
+  brne boot_key
 
   rcall xmodem_load_ram
   rjmp boot
@@ -130,6 +132,7 @@ boot:
 main:
 
   ; distance from boot prompt
+  rcall usart_newline
   rcall usart_newline
 
   ; zero stack
