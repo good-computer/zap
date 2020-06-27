@@ -2147,9 +2147,8 @@ zstring_init:
   ; handle decoded bytes directly, don't stack them
   clr r18
 
-  ; start char counter at 1, because we will dec and test before doing any
-  ; work, and this will bring it to zero forcing a word load
-  ldi r19, 1
+  ; no chars remaining, load new word
+  clr r19
 
   ; probably not at end of string
   clt
@@ -2162,7 +2161,7 @@ zstring_next:
   dec r19
 
   ; start of new word?
-  brne next_zchar
+  brpl next_zchar
 
   ; was previous word the last one?
   brtc PC+3
@@ -2184,7 +2183,7 @@ zstring_next:
   rol r20
 
   ; three zchars to do
-  ldi r19, 3
+  ldi r19, 2
 
 next_zchar:
   ; shift five bits into r16
