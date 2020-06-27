@@ -1138,8 +1138,6 @@ op_store:
 op_loadw:
 
   ; compute array index address
-  lsl r4
-  rol r5
   add r2, r4
   adc r3, r5
 
@@ -1174,8 +1172,6 @@ op_loadb:
   ; XXX life & share with loadw
 
   ; compute array index address
-  lsl r4
-  rol r5
   add r2, r4
   adc r3, r5
 
@@ -1399,8 +1395,6 @@ op_call_args_ready:
 op_storew:
 
   ; compute array index address
-  lsl r4
-  rol r5
   add r2, r4
   adc r3, r5
 
