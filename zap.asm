@@ -1166,6 +1166,10 @@ op_store:
 ; loadw array word-index -> (result)
 op_loadw:
 
+  ; index is a word offset
+  lsl r4
+  rol r5
+
   ; compute array index address
   add r2, r4
   adc r3, r5
@@ -1422,6 +1426,10 @@ op_call_args_ready:
 
 ; storew array word-index value
 op_storew:
+
+  ; index is a word offset
+  lsl r4
+  rol r5
 
   ; compute array index address
   add r2, r4
