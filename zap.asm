@@ -2179,7 +2179,7 @@ branch_generic:
   rcall ram_read_byte
   adiw z_pc_l, 1
 
-  ; bottom six bits are the low part of the offset
+  ; bottom six bits are the offset
   mov r18, r16
   andi r18, 0x3f
 
@@ -2197,15 +2197,11 @@ branch_generic:
   rcall ram_read_byte
   adiw z_pc_l, 1
 
-  ; bring bottom two bits into top two bits of low offset (erk)
-  lsr r16
-  ror r19
-  lsr r16
-  ror r19
-  or r18, r19
+  ; original offset bits are the high byte
+  mov r19, r18
 
-  ; remaining six bits to high byte off offset
-  mov r19, r16
+  ; second byte is the low byte
+  mov r18, r16
 
   ; bring back first byte
   pop r16
