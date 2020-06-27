@@ -502,7 +502,7 @@ op_2_table:
   rjmp op_je        ; je a b ?(label)
   rjmp unimpl       ; jl a b ?(label)
   rjmp op_jg        ; jg a b ?(label)
-  rjmp unimpl       ; dec_chk (variable) value ?(label)
+  rjmp op_dec_chk   ; dec_chk (variable) value ?(label)
   rjmp op_inc_chk   ; inc_chk (variable) value ?(label)
   rjmp op_jin       ; jin obj1 obj2 ?(label)
   rjmp unimpl       ; test bitmap flags ?(label)
@@ -928,6 +928,35 @@ op_jg:
   brsh PC+2
   set
 
+  rjmp branch_generic
+
+
+; dec_chk (variable) value ?(label)
+op_dec_chk:
+
+  mov r16, r2
+  rcall load_variable
+
+  ; decrement
+  movw r16, r0
+  subi r16, 1
+  sbci r17, 0
+  movw r0, r16
+
+  ; store value back
+  mov r16, r2
+  rcall store_variable
+
+  ; compare
+  cp r0, r4
+  cpc r1, r5
+
+  ; set T with result
+  clt
+  brlo PC+2
+  set
+
+  ; complete branch
   rjmp branch_generic
 
 
