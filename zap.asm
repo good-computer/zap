@@ -147,8 +147,8 @@ main:
   clr r17
   clr r18
   rcall ram_read_start
-  ldi ZL, low(z_header)
-  ldi ZH, high(z_header)
+  ldi YL, low(z_header)
+  ldi YH, high(z_header)
   ldi r16, 0x10
   rcall ram_read_bytes
   rcall ram_end
@@ -166,8 +166,8 @@ main:
   lds r17, z_header+0xc
   clr r18
   rcall ram_read_start
-  ldi ZL, low(z_global_vars)
-  ldi ZH, high(z_global_vars)
+  ldi YL, low(z_global_vars)
+  ldi YH, high(z_global_vars)
   clr r16
   rcall ram_read_bytes
   ldi r16, 0xe0
@@ -2434,7 +2434,7 @@ xlr_ready:
   rcall ram_write_start
 
   ; point to receive buffer
-  ldi ZH, high(0x100)
+  ldi YH, high(0x100)
 
 xlr_rx_packet:
 
@@ -2458,7 +2458,7 @@ xlr_rx_packet:
   ; XXX check it
 
   ; start of buffer
-  clr ZL
+  clr YL
 
   ; prepare for checksum
   clr r17
@@ -2470,7 +2470,7 @@ xlr_rx_packet:
   rcall usart_rx_byte
 
   ; add to buffer
-  st Z+, r16
+  st Y+, r16
 
   ; add to checksum
   add r17, r16
@@ -2500,7 +2500,7 @@ xlr_rx_packet:
   rcall usart_tx_byte
 
   ; move to external ram
-  clr ZL
+  clr YL
   ldi r16, 0x80
   rcall ram_write_bytes
 
@@ -2799,13 +2799,13 @@ ram_end:
 
 ; pull stuff from SRAM, previously set up with ram_read_start
 ;   r16: number of bytes to read
-;   Z: where to store it
+;   Y: where to store it
 ram_read_bytes:
   out SPDR, r16
   sbis SPSR, SPIF
   rjmp PC-1
   in r17, SPDR
-  st Z+, r17
+  st Y+, r17
   dec r16
   brne ram_read_bytes
   ret
@@ -2834,9 +2834,9 @@ ram_read_pair:
 
 ; write stuff to SRAM, previously set up with ram_write_start
 ;   r16: number of bytes to write
-;   Z: pointer to stuff to write
+;   Y: pointer to stuff to write
 ram_write_bytes:
-  ld r17, Z+
+  ld r17, Y+
   out SPDR, r17
   sbis SPSR, SPIF
   rjmp PC-1
