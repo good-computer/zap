@@ -465,7 +465,7 @@ op_0_table:
   rjmp op_rtrue      ; rtrue
   rjmp op_rfalse     ; rfalse
   rjmp op_print      ; print (literal_string)
-  rjmp unimpl        ; print_ret (literal-string)
+  rjmp op_print_ret  ; print_ret (literal-string)
   rjmp unimpl        ; nop
   rjmp unimpl        ; save ?(label) [v4 save -> (result)] [v5 illegal]
   rjmp unimpl        ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
@@ -595,6 +595,20 @@ op_print:
   adc z_pc_h, YH
 
   rjmp decode_op
+
+
+; print_ret (literal-string)
+op_print_ret:
+
+  rcall print_zstring
+
+  ; advance PC
+  add z_pc_l, YL
+  adc z_pc_h, YH
+
+  rcall usart_newline
+
+  rjmp op_rtrue
 
 
 ; ret_popped
