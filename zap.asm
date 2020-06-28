@@ -520,7 +520,7 @@ op_2_table:
   rjmp unimpl       ; get_next_prop object property -> (result)
   rjmp op_add       ; add a b -> (result)
   rjmp op_sub       ; sub a b -> (result)
-  rjmp unimpl       ; mul a b -> (result)
+  rjmp op_mul       ; mul a b -> (result)
   rjmp unimpl       ; div a b -> (result)
   rjmp unimpl       ; mod a b -> (result)
   rjmp unimpl       ; [v4] call_2s routine arg1 -> (result)
@@ -1337,6 +1337,22 @@ op_sub:
   ; math up my dudes
   sub r2, r4
   sbc r3, r5
+  rjmp store_op_result
+
+
+; mul a b -> (result)
+op_mul:
+
+  ; just the bottom part of a 16x16 multiply chain, because we don't care about
+  ; the top 16 result bits
+  mul r2, r4
+  movw r6, r0
+  mul r3, r4
+  add r7, r0
+  mul r2, r5
+  add r7, r0
+
+  movw r2, r6
   rjmp store_op_result
 
 
