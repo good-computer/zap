@@ -948,11 +948,9 @@ op_dec_chk:
   rcall store_variable
 
   ; compare
+  set
   cp r0, r4
   cpc r1, r5
-
-  ; set T with result
-  set
   brlo PC+2
   clt
 
@@ -976,11 +974,9 @@ op_inc_chk:
   rcall store_variable
 
   ; compare backwards, for less-than test
+  clt
   cp r4, r0
   cpc r5, r1
-
-  ; set T with result
-  clt
   brsh PC+2
   set
 
