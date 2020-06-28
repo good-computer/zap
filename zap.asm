@@ -1788,7 +1788,7 @@ dict_char_next:
   breq dict_word_done
 
   ; high bit set means nothing to output, but more to take
-  brmi PC+3
+  brmi PC+2
 
   ; real char, store it
   st Z+, r16
