@@ -485,7 +485,7 @@ op_1_table:
   rjmp op_get_child   ; get_child object -> (result) ?(label)
   rjmp op_get_parent  ; get_parent object -> (result)
   rjmp unimpl         ; get_prop_len property-address -> (result)
-  rjmp unimpl         ; inc (variable)
+  rjmp op_inc         ; inc (variable)
   rjmp unimpl         ; dec (variable)
   rjmp unimpl         ; print_addr byte-address-of-string
   rjmp unimpl         ; [v4] call_1s routine -> (result)
@@ -749,6 +749,12 @@ op_get_parent:
   rcall ram_read_start
 
   rjmp store_op_result
+
+
+; inc (variable)
+op_inc:
+  rcall inc_variable
+  rjmp decode_op
 
 
 ; print_obj object
