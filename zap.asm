@@ -1953,9 +1953,9 @@ compute_text_position:
 
   ; +2 past max/count
   ldi r18, 2
-  add r17, r18
+  add r16, r18
   brcc PC+2
-  inc r16
+  inc r17
 
   ; set up for write
   clr r18
