@@ -952,9 +952,9 @@ op_dec_chk:
   cpc r1, r5
 
   ; set T with result
-  clt
-  brlo PC+2
   set
+  brlo PC+2
+  clt
 
   ; complete branch
   rjmp branch_generic
