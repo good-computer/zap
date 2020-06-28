@@ -505,7 +505,7 @@ op_2_table:
   rjmp op_dec_chk   ; dec_chk (variable) value ?(label)
   rjmp op_inc_chk   ; inc_chk (variable) value ?(label)
   rjmp op_jin       ; jin obj1 obj2 ?(label)
-  rjmp unimpl       ; test bitmap flags ?(label)
+  rjmp op_test      ; test bitmap flags ?(label)
   rjmp unimpl       ; or a b -> (result)
   rjmp op_and       ; and a b -> (result)
   rjmp op_test_attr ; test_attr object attribute ?(label)
@@ -1027,6 +1027,21 @@ op_jin:
   movw r16, z_pc_l
   clr r18
   rcall ram_read_start
+
+  rjmp branch_generic
+
+
+; test bitmap flags ?(label)
+op_test:
+
+  and r2, r4
+  and r3, r5
+
+  clt
+  cp r2, r4
+  cpc r3, r5
+  brne PC+2
+  set
 
   rjmp branch_generic
 
