@@ -940,7 +940,7 @@ op_dec_chk:
   set
   cp r0, r4
   cpc r1, r5
-  brlo PC+2
+  brmi PC+2
   clt
 
   ; complete branch
@@ -956,7 +956,7 @@ op_inc_chk:
   clt
   cp r4, r0
   cpc r5, r1
-  brsh PC+2
+  brpl PC+2
   set
 
   ; complete branch
