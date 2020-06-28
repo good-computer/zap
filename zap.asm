@@ -1357,6 +1357,17 @@ op_mul:
 ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
 op_call:
 
+  ; zero routine address?
+  tst r2
+  brne PC+6
+  tst r3
+  brne PC+4
+
+  ; special case for zero, just push false and return
+  clr r2
+  clr r3
+  rjmp store_op_result
+
   ; close current rem read (instruction)
   rcall ram_end
 
