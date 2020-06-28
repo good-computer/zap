@@ -1974,6 +1974,7 @@ compute_text_position:
   ldi r17, low(input_buffer)
   mov r1, r6
   sub r1, r17
+  inc r1 ; move past max count
 
   ; set up to write the current block out to the word buffer
   ldi YL, low(word_buffer)
