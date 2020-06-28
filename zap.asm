@@ -534,7 +534,7 @@ op_2_table:
 op_v_table:
   rjmp op_call       ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
   rjmp op_storew     ; storew array word-index value
-  rjmp unimpl        ; storeb array byte-index value
+  rjmp op_storeb     ; storeb array byte-index value
   rjmp op_put_prop   ; put_prop object property value
   rjmp op_sread      ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
   rjmp op_print_char ; print_char output-character-code
@@ -1474,6 +1474,37 @@ op_storew:
   mov r16, r7
   mov r17, r6
   rcall ram_write_pair
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done!
+  rjmp decode_op
+
+
+; storeb array byte-index value
+op_storeb:
+
+  ; compute array index address
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram for write at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_write_start
+
+  ; write value
+  mov r16, r6
+  rcall ram_write_byte
 
   ; close ram again
   rcall ram_end
