@@ -934,18 +934,7 @@ op_jg:
 ; dec_chk (variable) value ?(label)
 op_dec_chk:
 
-  mov r16, r2
-  rcall load_variable
-
-  ; decrement
-  movw r16, r0
-  subi r16, 1
-  sbci r17, 0
-  movw r0, r16
-
-  ; store value back
-  mov r16, r2
-  rcall store_variable
+  rcall dec_variable
 
   ; compare
   set
@@ -961,17 +950,7 @@ op_dec_chk:
 ; inc_chk (variable) value ?(label)
 op_inc_chk:
 
-  mov r16, r2
-  rcall load_variable
-
-  ; increment
-  inc r0
-  brne PC+2
-  inc r1
-
-  ; store value back
-  mov r16, r2
-  rcall store_variable
+  rcall inc_variable
 
   ; compare backwards, for less-than test
   clt
@@ -2251,6 +2230,50 @@ store_variable:
   ; store it (z order, store high first)
   st Y+, r1
   st Y+, r0
+  ret
+
+
+; increment variable
+; inputs:
+;   r2: variable number
+; outputs:
+;   r0:r1: new value
+inc_variable:
+
+  mov r16, r2
+  rcall load_variable
+
+  ; increment
+  inc r0
+  brne PC+2
+  inc r1
+
+  ; store value back
+  mov r16, r2
+  rcall store_variable
+
+  ret
+
+; decrement variable
+; inputs:
+;   r2: variable number
+; outputs:
+;   r0:r1: new value
+dec_variable:
+
+  mov r16, r2
+  rcall load_variable
+
+  ; decrement
+  movw r16, r0
+  subi r16, 1
+  sbci r17, 0
+  movw r0, r16
+
+  ; store value back
+  mov r16, r2
+  rcall store_variable
+
   ret
 
 
