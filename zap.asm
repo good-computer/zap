@@ -500,7 +500,7 @@ op_1_table:
 op_2_table:
   rjmp unimpl       ; [nonexistent]
   rjmp op_je        ; je a b ?(label)
-  rjmp unimpl       ; jl a b ?(label)
+  rjmp op_jl        ; jl a b ?(label)
   rjmp op_jg        ; jg a b ?(label)
   rjmp op_dec_chk   ; dec_chk (variable) value ?(label)
   rjmp op_inc_chk   ; inc_chk (variable) value ?(label)
@@ -921,6 +921,19 @@ op_je:
   set
 
   ; oof
+  rjmp branch_generic
+
+
+; jl a b ?(label)
+op_jl:
+
+  ; compare
+  set
+  cp r2, r4
+  cpc r3, r5
+  brmi PC+2
+  clt
+
   rjmp branch_generic
 
 
