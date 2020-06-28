@@ -2353,6 +2353,12 @@ branch_generic:
   ; second byte is the low byte
   mov r18, r16
 
+  ; this 14-bit offset is actually signed, so if its negative, need to extend it
+  sbrc r19, 5
+
+  ; set top two bits, extending the sign
+  sbr r19, 0xc0
+
   ; bring back first byte
   pop r16
 
