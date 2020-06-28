@@ -2008,11 +2008,12 @@ compute_text_position:
   push r17
 
   ; multiply token count by block size (4) to get offset
-  clr r16
-  lsl r17
-  rol r16
-  lsl r17
-  rol r16
+  mov r16, r17
+  clr r17
+  lsl r16
+  rol r17
+  lsl r16
+  rol r17
 
   ; add parse buffer addr
   add r16, r4
