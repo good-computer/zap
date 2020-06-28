@@ -931,7 +931,7 @@ op_jg:
   clt
   cp r4, r2
   cpc r5, r3
-  brsh PC+2
+  brpl PC+2
   set
 
   rjmp branch_generic
