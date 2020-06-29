@@ -498,38 +498,38 @@ op_1_table:
   rjmp unimpl         ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
-  rjmp unimpl       ; [nonexistent]
-  rjmp op_je        ; je a b ?(label)
-  rjmp op_jl        ; jl a b ?(label)
-  rjmp op_jg        ; jg a b ?(label)
-  rjmp op_dec_chk   ; dec_chk (variable) value ?(label)
-  rjmp op_inc_chk   ; inc_chk (variable) value ?(label)
-  rjmp op_jin       ; jin obj1 obj2 ?(label)
-  rjmp op_test      ; test bitmap flags ?(label)
-  rjmp unimpl       ; or a b -> (result)
-  rjmp op_and       ; and a b -> (result)
-  rjmp op_test_attr ; test_attr object attribute ?(label)
-  rjmp op_set_attr  ; set_attr object attribute
-  rjmp unimpl       ; clear_attr object attribute
-  rjmp op_store     ; store (variable) value
-  rjmp unimpl       ; insert_obj object destination
-  rjmp op_loadw     ; loadw array word-index -> (result)
-  rjmp op_loadb     ; loadb array byte-index -> (result)
-  rjmp op_get_prop  ; get_prop object property -> (result)
-  rjmp unimpl       ; get_prop_addr object property -> (result)
-  rjmp unimpl       ; get_next_prop object property -> (result)
-  rjmp op_add       ; add a b -> (result)
-  rjmp op_sub       ; sub a b -> (result)
-  rjmp op_mul       ; mul a b -> (result)
-  rjmp unimpl       ; div a b -> (result)
-  rjmp unimpl       ; mod a b -> (result)
-  rjmp unimpl       ; [v4] call_2s routine arg1 -> (result)
-  rjmp unimpl       ; [v5] call_2n routine arg1
-  rjmp unimpl       ; [v5] set_colour foreground background [v6 set_colour foreground background window]
-  rjmp unimpl       ; [v5] throw value stack-frame
-  rjmp unimpl       ; [nonexistent]
-  rjmp unimpl       ; [nonexistent]
-  rjmp unimpl       ; [nonexistent]
+  rjmp unimpl           ; [nonexistent]
+  rjmp op_je            ; je a b ?(label)
+  rjmp op_jl            ; jl a b ?(label)
+  rjmp op_jg            ; jg a b ?(label)
+  rjmp op_dec_chk       ; dec_chk (variable) value ?(label)
+  rjmp op_inc_chk       ; inc_chk (variable) value ?(label)
+  rjmp op_jin           ; jin obj1 obj2 ?(label)
+  rjmp op_test          ; test bitmap flags ?(label)
+  rjmp unimpl           ; or a b -> (result)
+  rjmp op_and           ; and a b -> (result)
+  rjmp op_test_attr     ; test_attr object attribute ?(label)
+  rjmp op_set_attr      ; set_attr object attribute
+  rjmp unimpl           ; clear_attr object attribute
+  rjmp op_store         ; store (variable) value
+  rjmp unimpl           ; insert_obj object destination
+  rjmp op_loadw         ; loadw array word-index -> (result)
+  rjmp op_loadb         ; loadb array byte-index -> (result)
+  rjmp op_get_prop      ; get_prop object property -> (result)
+  rjmp op_get_prop_addr ; get_prop_addr object property -> (result)
+  rjmp unimpl           ; get_next_prop object property -> (result)
+  rjmp op_add           ; add a b -> (result)
+  rjmp op_sub           ; sub a b -> (result)
+  rjmp op_mul           ; mul a b -> (result)
+  rjmp unimpl           ; div a b -> (result)
+  rjmp unimpl           ; mod a b -> (result)
+  rjmp unimpl           ; [v4] call_2s routine arg1 -> (result)
+  rjmp unimpl           ; [v5] call_2n routine arg1
+  rjmp unimpl           ; [v5] set_colour foreground background [v6 set_colour foreground background window]
+  rjmp unimpl           ; [v5] throw value stack-frame
+  rjmp unimpl           ; [nonexistent]
+  rjmp unimpl           ; [nonexistent]
+  rjmp unimpl           ; [nonexistent]
 
 op_v_table:
   rjmp op_call       ; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
@@ -1333,6 +1333,48 @@ get_prop_value:
   rcall ram_read_start
 
   ; return!
+  rjmp store_op_result
+
+
+; get_prop_addr object property -> (result)
+op_get_prop_addr:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp store_op_result
+
+  ; close ram
+  rcall ram_end
+
+  ; find the property value
+  mov r16, r2
+  mov r17, r4
+  rcall get_object_property_pointer
+
+  ; check if we got it
+  tst r16
+  brne PC+4
+
+  ; not found, zero return
+  clr YL
+  clr YH
+  rjmp PC+2
+
+  ; if found, ram is waiting at property, close it
+  rcall ram_end
+
+  ; move return into first arg for store
+  movw r2, YL
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; great
   rjmp store_op_result
 
 
