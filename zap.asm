@@ -480,22 +480,22 @@ op_0_table:
   rjmp unimpl        ; [v5] piracy ?(label)
 
 op_1_table:
-  rjmp op_jz          ; jz a ?(label)
-  rjmp op_get_sibling ; get_sibling object -> (result) ?(label)
-  rjmp op_get_child   ; get_child object -> (result) ?(label)
-  rjmp op_get_parent  ; get_parent object -> (result)
-  rjmp unimpl         ; get_prop_len property-address -> (result)
-  rjmp op_inc         ; inc (variable)
-  rjmp unimpl         ; dec (variable)
-  rjmp unimpl         ; print_addr byte-address-of-string
-  rjmp unimpl         ; [v4] call_1s routine -> (result)
-  rjmp unimpl         ; remove_obj object
-  rjmp op_print_obj   ; print_obj object
-  rjmp op_ret         ; ret value
-  rjmp op_jump        ; jump ?(label)
-  rjmp op_print_paddr ; print_paddr packed-address-of-string
-  rjmp unimpl         ; load (variable) -> result
-  rjmp unimpl         ; not value -> (result) [v5 call_1n routine]
+  rjmp op_jz           ; jz a ?(label)
+  rjmp op_get_sibling  ; get_sibling object -> (result) ?(label)
+  rjmp op_get_child    ; get_child object -> (result) ?(label)
+  rjmp op_get_parent   ; get_parent object -> (result)
+  rjmp op_get_prop_len ; get_prop_len property-address -> (result)
+  rjmp op_inc          ; inc (variable)
+  rjmp unimpl          ; dec (variable)
+  rjmp unimpl          ; print_addr byte-address-of-string
+  rjmp unimpl          ; [v4] call_1s routine -> (result)
+  rjmp unimpl          ; remove_obj object
+  rjmp op_print_obj    ; print_obj object
+  rjmp op_ret          ; ret value
+  rjmp op_jump         ; jump ?(label)
+  rjmp op_print_paddr  ; print_paddr packed-address-of-string
+  rjmp unimpl          ; load (variable) -> result
+  rjmp unimpl          ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
   rjmp unimpl           ; [nonexistent]
@@ -752,6 +752,45 @@ op_get_parent:
   rcall ram_read_byte
 
   rcall ram_end
+
+  ; move to arg0 for result
+  mov r2, r16
+  clr r3
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp store_op_result
+
+
+; get_prop_len property-address -> (result)
+op_get_prop_len:
+
+  rcall ram_end
+
+  ; length is stored one behind given address, so take it back one
+  movw r16, r2
+  subi r16, 1
+  sbci r17, 0
+
+  ; setup for read
+  clr r18
+  rcall ram_read_start
+
+  ; read length
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; top three bits are the length-1, so shift down and increment
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  inc r16
 
   ; move to arg0 for result
   mov r2, r16
