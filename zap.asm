@@ -466,13 +466,13 @@ op_0_table:
   rjmp op_rfalse     ; rfalse
   rjmp op_print      ; print (literal_string)
   rjmp op_print_ret  ; print_ret (literal-string)
-  rjmp unimpl        ; nop
+  rjmp decode_op     ; nop
   rjmp unimpl        ; save ?(label) [v4 save -> (result)] [v5 illegal]
   rjmp unimpl        ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
   rjmp unimpl        ; restart
   rjmp op_ret_popped ; ret_popped
   rjmp unimpl        ; pop [v5/6 catch -> (result)]
-  rjmp unimpl        ; quit
+  rjmp wd_reset      ; quit
   rjmp op_new_line   ; new_line
   rjmp unimpl        ; [v3] show_status [v4 illegal]
   rjmp unimpl        ; [v3] verify ?(label)
