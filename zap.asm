@@ -510,7 +510,7 @@ op_2_table:
   rjmp op_and           ; and a b -> (result)
   rjmp op_test_attr     ; test_attr object attribute ?(label)
   rjmp op_set_attr      ; set_attr object attribute
-  rjmp unimpl           ; clear_attr object attribute
+  rjmp op_clear_attr    ; clear_attr object attribute
   rjmp op_store         ; store (variable) value
   rjmp unimpl           ; insert_obj object destination
   rjmp op_loadw         ; loadw array word-index -> (result)
@@ -1153,8 +1153,9 @@ op_test_attr:
   rjmp branch_generic
 
 
-; set_attr object attribute
-op_set_attr:
+; set/clear attr main routing
+; T: value to set bit to
+write_attr:
 
   ; null object check
   tst r2
@@ -1196,8 +1197,16 @@ op_set_attr:
   pop r16
   pop r17
 
-  ; set bit
+  ; set or clear bit
+  brtc PC+3
+
+  ; set, just or with the mask
   or r16, r17
+  rjmp PC+3
+
+  ; clear, complement the mask then and
+  com r17
+  and r16, r17
 
   ; write it out
   rcall ram_write_byte
@@ -1210,6 +1219,17 @@ op_set_attr:
   rcall ram_read_start
 
   rjmp decode_op
+
+; set_attr object attribute
+op_set_attr:
+  set
+  rjmp write_attr
+
+
+; clear_attr object attribute
+op_clear_attr:
+  clt
+  rjmp write_attr
 
 
 ; store (variable) value
