@@ -1506,7 +1506,10 @@ op_get_prop:
   lds r16, z_header+0xb
   lds r17, z_header+0xa
 
-  ; words, so double property number to make an offset
+  ; properties are counted from 1
+  dec r4
+
+  ; property values are words, so double property number to make an offset
   lsl r4
 
   ; offset into default table
