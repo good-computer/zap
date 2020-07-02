@@ -566,6 +566,626 @@ op_v_table:
   rjmp unimpl        ; [v5] check_arg_count argument-number
 
 
+; READING AND WRITING MEMORY
+
+; store (variable) value
+op_store:
+
+  ; get variable name
+  mov r16, r2
+
+  ; store value there
+  movw r0, r4
+  rcall store_variable
+
+  rjmp decode_op
+
+
+; loadw array word-index -> (result)
+op_loadw:
+
+  ; index is a word offset
+  lsl r4
+  rol r5
+
+  ; compute array index address
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  ; get value
+  rcall ram_read_pair
+  mov r3, r16
+  mov r2, r17
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done, store value
+  rjmp store_op_result
+
+
+; storew array word-index value
+op_storew:
+
+  ; index is a word offset
+  lsl r4
+  rol r5
+
+  ; compute array index address
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram for write at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_write_start
+
+  ; write value
+  mov r16, r7
+  mov r17, r6
+  rcall ram_write_pair
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done!
+  rjmp decode_op
+
+
+; loadb array byte-index -> (result)
+op_loadb:
+
+  ; XXX life & share with loadw
+
+  ; compute array index address
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  ; get value
+  rcall ram_read_byte
+  mov r2, r16
+  clr r3
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done, store value
+  rjmp store_op_result
+
+
+; storeb array byte-index value
+op_storeb:
+
+  ; compute array index address
+  add r2, r4
+  adc r3, r5
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram for write at array cell
+  movw r16, r2
+  clr r18
+  rcall ram_write_start
+
+  ; write value
+  mov r16, r6
+  rcall ram_write_byte
+
+  ; close ram again
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; done!
+  rjmp decode_op
+
+
+; push value
+op_push:
+
+  ; setup for var 0 (stack push)
+  clr r16
+
+  ; store value there
+  movw r0, r2
+  rcall store_variable
+
+  rjmp decode_op
+
+
+; pull (variable) [v6 pull stack -> (result)]
+op_pull:
+
+  ; load var 0 (stack pull)
+  clr r16
+  rcall load_variable
+
+  ; store to the named var
+  mov r16, r2
+  rcall store_variable
+
+  rjmp decode_op
+
+
+; ARITHMETIC
+
+; add a b -> (result)
+op_add:
+  ; add the args
+  add r2, r4
+  adc r3, r5
+  rjmp store_op_result
+
+
+; sub a b -> (result)
+op_sub:
+  ; math up my dudes
+  sub r2, r4
+  sbc r3, r5
+  rjmp store_op_result
+
+
+; mul a b -> (result)
+op_mul:
+
+  ; just the bottom part of a 16x16 multiply chain, because we don't care about
+  ; the top 16 result bits
+  mul r2, r4
+  movw r6, r0
+  mul r3, r4
+  add r7, r0
+  mul r2, r5
+  add r7, r0
+
+  movw r2, r6
+  rjmp store_op_result
+
+
+; div a b -> (result)
+op_div:
+
+  ; check divide-by-zero
+  tst r4
+  brne PC+4
+  tst r5
+  brne PC+2
+
+  ; I mean, what else can you do?
+  rjmp fatal
+
+  movw r16, r2
+  movw r18, r4
+
+  ; taken from app note AVR200 (div16s)
+  mov  r4, r17        ; move dividend High to sign register
+  eor  r4, r19        ; xor divisor High with sign register
+  sbrs r17, 7         ; if MSB in dividend set
+  rjmp PC+5
+  com  r17            ;    change sign of dividend
+  com  r16
+  subi r16, 0xff
+  sbci r16, 0xff
+  sbrs r19, 7         ; if MSB in divisor set
+  rjmp PC+4
+  com  r19            ;    change sign of divisor
+  neg  r18
+  sbci r19, 0xff
+  clr  r2             ; clear remainder Low byte
+  sub  r3, r3         ; clear remainder High byte and carry
+  ldi  r20, 17        ; init loop counter
+div_loop:
+  rol  r16            ; shift left dividend
+  rol  r17
+  dec  r20            ; decrement counter
+  brne PC+8           ; if done
+  sbrs r4, 7          ;    if MSB in sign register set
+  rjmp PC+4
+  com  r17            ;        change sign of result
+  neg  r16
+  sbci r17, 0xff
+  rjmp div_done       ;    return
+  rol  r2             ; shift dividend into remainder
+  rol  r3
+  sub  r2, r18        ; remainder = remainder - divisor
+  sbc  r3, r19        ;
+  brcc PC+5           ; if result negative
+  add  r2, r18        ;    restore remainder
+  adc  r3, r19
+  clc                 ;    clear carry to be shifted into result
+  rjmp div_loop       ; else
+  sec                 ;    set carry to be shifted into result
+  rjmp div_loop
+
+div_done:
+
+  ; move result to arg0 for store
+  movw r2, r16
+
+  rjmp store_op_result
+
+
+; inc (variable)
+op_inc:
+  rcall inc_variable
+  rjmp decode_op
+
+
+; inc_chk (variable) value ?(label)
+op_inc_chk:
+
+  rcall inc_variable
+
+  ; compare backwards, for less-than test
+  clt
+  cp r4, r0
+  cpc r5, r1
+  brpl PC+2
+  set
+
+  ; complete branch
+  rjmp branch_generic
+
+
+; dec_chk (variable) value ?(label)
+op_dec_chk:
+
+  rcall dec_variable
+
+  ; compare
+  set
+  cp r0, r4
+  cpc r1, r5
+  brmi PC+2
+  clt
+
+  ; complete branch
+  rjmp branch_generic
+
+
+; and a b -> (result)
+op_and:
+  and r2, r4
+  and r3, r5
+  rjmp store_op_result
+
+
+; COMPARISONS AND JUMPS
+
+; jz a ?(label)
+op_jz:
+  clt
+
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+
+  set
+
+  rjmp branch_generic
+
+
+; je a b ?(label)
+op_je:
+  ; assume no match
+  clt
+
+  ; second arg
+  cp r2, r4
+  cpc r3, r5
+  brne PC+3
+  set
+  rjmp branch_generic
+
+  ; third arg?
+  mov r16, z_argtype
+  andi r16, 0xc
+  cpi r16, 0xc
+  brne PC+2
+  rjmp branch_generic
+
+  ; compare with third
+  cp r2, r6
+  cpc r3, r7
+  brne PC+3
+  set
+  rjmp branch_generic
+
+  ; fourth arg?
+  mov r16, z_argtype
+  andi r16, 0x3
+  cpi r16, 0x3
+  brne PC+2
+  rjmp branch_generic
+
+  ; compare with fourth
+  cp r2, r8
+  cpc r3, r9
+  brne PC+2
+  set
+
+  ; oof
+  rjmp branch_generic
+
+
+; jl a b ?(label)
+op_jl:
+
+  ; compare
+  set
+  cp r2, r4
+  cpc r3, r5
+  brmi PC+2
+  clt
+
+  rjmp branch_generic
+
+
+; jg a b ?(label)
+op_jg:
+
+  ; reverse compare so we can avoid an extra equality check
+  clt
+  cp r4, r2
+  cpc r5, r3
+  brpl PC+2
+  set
+
+  rjmp branch_generic
+
+
+; jin obj1 obj2 ?(label)
+op_jin:
+  ; get_parent obj1 ST
+  ; je ST obj2
+
+  ; null object check
+  tst r2
+  brne PC+5
+  tst r3
+  brne PC+3
+  clt
+  rjmp branch_generic
+
+  ; close ram
+  rcall ram_end
+
+  ; get the object pointer
+  mov r16, r2
+  rcall get_object_pointer
+
+  ; add 4 bytes for parent number
+  adiw YL, 4
+
+  ; open ram at object parent number
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read parent number
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; compare
+  clt
+  cp r16, r4
+  brne PC+2
+  set
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp branch_generic
+
+
+; test bitmap flags ?(label)
+op_test:
+
+  and r2, r4
+  and r3, r5
+
+  clt
+  cp r2, r4
+  cpc r3, r5
+  brne PC+2
+  set
+
+  rjmp branch_generic
+
+
+; jump ?(label)
+op_jump:
+  ; add offset ot PC
+  add z_pc_l, r2
+  adc z_pc_h, r3
+  sbiw z_pc_l, 2
+
+  ; close ram
+  rcall ram_end
+
+  ; reopen ram at new PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
+
+
+; CALL AND RETURN
+
+; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
+op_call:
+
+  ; zero routine address?
+  tst r2
+  brne PC+6
+  tst r3
+  brne PC+4
+
+  ; special case for zero, just push false and return
+  clr r2
+  clr r3
+  rjmp store_op_result
+
+  ; close current rem read (instruction)
+  rcall ram_end
+
+  ; save current PC (stack order, push high first)
+  st -X, z_pc_h
+  st -X, z_pc_l
+
+  ; save current argp (stack order, push high first)
+  st -X, z_argp_h
+  st -X, z_argp_l
+
+  ; set new argp to top of stack
+  movw z_argp_l, XL
+
+  ; unpack address
+  lsl r2
+  rol r3
+
+  ; set up to read routine header
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  ; read local var count
+  rcall ram_read_byte
+
+  ; double it to get number of bytes
+  lsl r16
+
+  ; calculate new PC: start of header + 2x num locals + 1
+  movw z_pc_l, r2
+  add z_pc_l, r16
+  brcc PC+2
+  inc z_pc_h
+  adiw z_pc_l, 1
+
+  ; copy initial values into stacked local vars
+  mov r18, r16
+
+  ; location of arg1 registers (r4:r5) in RAM, so we can walk like memory
+  ldi YL, low(0x0004)
+  ldi YH, high(0x0004)
+
+op_call_set_arg:
+  ; got them all yet?
+  tst r18
+  breq op_call_args_ready
+
+  ; shift type down two (doing first, to throw away first arg which is raddr)
+  lsl z_argtype
+  lsl z_argtype
+  sbr z_argtype, 0x3
+
+  ; do we have an arg
+  mov r16, z_argtype
+  andi r16, 0xc0
+  cpi r16, 0xc0
+  breq op_call_default_args
+
+  ; yes, stack it (stack order, push high first)
+  ld r16, Y+
+  ld r17, Y+
+  st -X, r17
+  st -X, r16
+
+  ; skip two default bytes
+  rcall ram_read_byte
+  rcall ram_read_byte
+  subi r18, 2
+
+  rjmp op_call_set_arg
+
+op_call_default_args:
+  ; fill the rest with default args
+  ; reading z order (h:l), so stacking in stack order (push high first)
+  tst r18
+  breq op_call_args_ready
+  rcall ram_read_byte
+  st -X, r16
+  dec r18
+  rjmp op_call_default_args
+
+op_call_args_ready:
+
+  ; - PC is set
+  ; - argp is set
+  ; - args are filled
+  ; - RAM is open at PC position
+
+  rjmp decode_op
+
+
+; ret value
+op_ret:
+
+  ; close ram
+  rcall ram_end
+
+  ; move SP back to before args
+  movw XL, z_argp_l
+
+  ; restore previous argp
+  ld z_argp_l, X+
+  ld z_argp_h, X+
+
+  ; restore previous PC
+  ld z_pc_l, X+
+  ld z_pc_h, X+
+
+  ; reopen ram at restored PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  ; PC now at return var for previous instruction, and we can return
+  rjmp store_op_result
+
+
 ; rtrue
 op_rtrue:
 
@@ -585,32 +1205,6 @@ op_rfalse:
   rjmp op_ret
 
 
-; print (literal_string)
-op_print:
-
-  rcall print_zstring
-
-  ; advance PC
-  add z_pc_l, YL
-  adc z_pc_h, YH
-
-  rjmp decode_op
-
-
-; print_ret (literal-string)
-op_print_ret:
-
-  rcall print_zstring
-
-  ; advance PC
-  add z_pc_l, YL
-  adc z_pc_h, YH
-
-  rcall usart_newline
-
-  rjmp op_rtrue
-
-
 ; ret_popped
 op_ret_popped:
 
@@ -625,25 +1219,7 @@ op_ret_popped:
   rjmp op_ret
 
 
-; new_line
-op_new_line:
-  rcall usart_newline
-  rjmp decode_op
-
-
-; jz a ?(label)
-op_jz:
-  clt
-
-  tst r2
-  brne PC+4
-  tst r3
-  brne PC+2
-
-  set
-
-  rjmp branch_generic
-
+; OBJECTS, ATTRIBUTES AND PROPERTIES
 
 ; get_sibling object -> (result) ?(label)
 op_get_sibling:
@@ -763,491 +1339,6 @@ op_get_parent:
   rcall ram_read_start
 
   rjmp store_op_result
-
-
-; get_prop_len property-address -> (result)
-op_get_prop_len:
-
-  rcall ram_end
-
-  ; length is stored one behind given address, so take it back one
-  movw r16, r2
-  subi r16, 1
-  sbci r17, 0
-
-  ; setup for read
-  clr r18
-  rcall ram_read_start
-
-  ; read length
-  rcall ram_read_byte
-
-  rcall ram_end
-
-  ; top three bits are the length-1, so shift down and increment
-  lsr r16
-  lsr r16
-  lsr r16
-  lsr r16
-  lsr r16
-  inc r16
-
-  ; move to arg0 for result
-  mov r2, r16
-  clr r3
-
-  ; reset ram
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp store_op_result
-
-
-; inc (variable)
-op_inc:
-  rcall inc_variable
-  rjmp decode_op
-
-
-; print_obj object
-op_print_obj:
-
-  ; null object check
-  tst r2
-  brne PC+4
-  tst r3
-  brne PC+2
-  rjmp decode_op
-
-  ; close ram
-  rcall ram_end
-
-  ; get the object pointer
-  mov r16, r2
-  rcall get_object_pointer
-
-  ; add 7 bytes for property pointer
-  adiw YL, 7
-
-  ; open ram at object property pointer
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  ; read property pointer
-  rcall ram_read_pair
-  mov YL, r17
-  mov YH, r16
-
-  ; close ram again
-  rcall ram_end
-
-  ; move past short name length, don't need it
-  adiw YL, 1
-
-  ; open for read at object name
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  rcall print_zstring
-
-  rcall ram_end
-
-  ; reset ram
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp decode_op
-
-
-; ret value
-op_ret:
-
-  ; close ram
-  rcall ram_end
-
-  ; move SP back to before args
-  movw XL, z_argp_l
-
-  ; restore previous argp
-  ld z_argp_l, X+
-  ld z_argp_h, X+
-
-  ; restore previous PC
-  ld z_pc_l, X+
-  ld z_pc_h, X+
-
-  ; reopen ram at restored PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  ; PC now at return var for previous instruction, and we can return
-  rjmp store_op_result
-
-
-; jump ?(label)
-op_jump:
-  ; add offset ot PC
-  add z_pc_l, r2
-  adc z_pc_h, r3
-  sbiw z_pc_l, 2
-
-  ; close ram
-  rcall ram_end
-
-  ; reopen ram at new PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp decode_op
-
-
-; print_paddr packed-address-of-string
-op_print_paddr:
-
-  ; unpack word
-  lsl r2
-  rol r3
-
-  ; fall through
-
-; print_addr byte-address-of-string
-op_print_addr:
-
-  ; close ram
-  rcall ram_end
-
-  ; open ram at address
-  movw r16, r2
-  clr r18
-  rcall ram_read_start
-
-  rcall print_zstring
-
-  rcall ram_end
-
-  ; reset ram
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp decode_op
-
-
-; je a b ?(label)
-op_je:
-  ; assume no match
-  clt
-
-  ; second arg
-  cp r2, r4
-  cpc r3, r5
-  brne PC+3
-  set
-  rjmp branch_generic
-
-  ; third arg?
-  mov r16, z_argtype
-  andi r16, 0xc
-  cpi r16, 0xc
-  brne PC+2
-  rjmp branch_generic
-
-  ; compare with third
-  cp r2, r6
-  cpc r3, r7
-  brne PC+3
-  set
-  rjmp branch_generic
-
-  ; fourth arg?
-  mov r16, z_argtype
-  andi r16, 0x3
-  cpi r16, 0x3
-  brne PC+2
-  rjmp branch_generic
-
-  ; compare with fourth
-  cp r2, r8
-  cpc r3, r9
-  brne PC+2
-  set
-
-  ; oof
-  rjmp branch_generic
-
-
-; jl a b ?(label)
-op_jl:
-
-  ; compare
-  set
-  cp r2, r4
-  cpc r3, r5
-  brmi PC+2
-  clt
-
-  rjmp branch_generic
-
-
-; jg a b ?(label)
-op_jg:
-
-  ; reverse compare so we can avoid an extra equality check
-  clt
-  cp r4, r2
-  cpc r5, r3
-  brpl PC+2
-  set
-
-  rjmp branch_generic
-
-
-; dec_chk (variable) value ?(label)
-op_dec_chk:
-
-  rcall dec_variable
-
-  ; compare
-  set
-  cp r0, r4
-  cpc r1, r5
-  brmi PC+2
-  clt
-
-  ; complete branch
-  rjmp branch_generic
-
-
-; inc_chk (variable) value ?(label)
-op_inc_chk:
-
-  rcall inc_variable
-
-  ; compare backwards, for less-than test
-  clt
-  cp r4, r0
-  cpc r5, r1
-  brpl PC+2
-  set
-
-  ; complete branch
-  rjmp branch_generic
-
-
-; jin obj1 obj2 ?(label)
-op_jin:
-  ; get_parent obj1 ST
-  ; je ST obj2
-
-  ; null object check
-  tst r2
-  brne PC+5
-  tst r3
-  brne PC+3
-  clt
-  rjmp branch_generic
-
-  ; close ram
-  rcall ram_end
-
-  ; get the object pointer
-  mov r16, r2
-  rcall get_object_pointer
-
-  ; add 4 bytes for parent number
-  adiw YL, 4
-
-  ; open ram at object parent number
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  ; read parent number
-  rcall ram_read_byte
-
-  rcall ram_end
-
-  ; compare
-  clt
-  cp r16, r4
-  brne PC+2
-  set
-
-  ; reset ram
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp branch_generic
-
-
-; test bitmap flags ?(label)
-op_test:
-
-  and r2, r4
-  and r3, r5
-
-  clt
-  cp r2, r4
-  cpc r3, r5
-  brne PC+2
-  set
-
-  rjmp branch_generic
-
-
-; and a b -> (result)
-op_and:
-  and r2, r4
-  and r3, r5
-  rjmp store_op_result
-
-
-; test_attr object attribute ?(label)
-op_test_attr:
-
-  ; null object check
-  tst r2
-  brne PC+5
-  tst r3
-  brne PC+3
-  clt
-  rjmp branch_generic
-
-  ; close ram
-  rcall ram_end
-
-  ; find the attribute
-  mov r16, r2
-  mov r17, r4
-  rcall get_attribute_pointer
-
-  ; save bit mask
-  push r16
-
-  ; open ram at attribute position
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  ; read the single byte
-  rcall ram_read_byte
-
-  rcall ram_end
-
-  ; get bit mask back
-  pop r17
-
-  ; set T if bit is set
-  clt
-  and r16, r17
-  breq PC+2
-  set
-
-  ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp branch_generic
-
-
-; set/clear attr main routing
-; T: value to set bit to
-write_attr:
-
-  ; null object check
-  tst r2
-  brne PC+4
-  tst r3
-  brne PC+2
-  rjmp decode_op
-
-  ; close ram
-  rcall ram_end
-
-  ; find the attribute
-  mov r16, r2
-  mov r17, r4
-  rcall get_attribute_pointer
-
-  ; save bitmask
-  push r16
-
-  ; open ram at attribute position
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  ; read the single byte
-  rcall ram_read_byte
-
-  rcall ram_end
-
-  ; save previous value
-  push r16
-
-  ; set up for write to attribute position
-  movw r16, YL
-  clr r18
-  rcall ram_write_start
-
-  ; get value and mask back
-  pop r16
-  pop r17
-
-  ; set or clear bit
-  brtc PC+3
-
-  ; set, just or with the mask
-  or r16, r17
-  rjmp PC+3
-
-  ; clear, complement the mask then and
-  com r17
-  and r16, r17
-
-  ; write it out
-  rcall ram_write_byte
-
-  rcall ram_end
-
-  ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp decode_op
-
-; set_attr object attribute
-op_set_attr:
-  set
-  rjmp write_attr
-
-
-; clear_attr object attribute
-op_clear_attr:
-  clt
-  rjmp write_attr
-
-
-; store (variable) value
-op_store:
-
-  ; get variable name
-  mov r16, r2
-
-  ; store value there
-  movw r0, r4
-  rcall store_variable
-
-  rjmp decode_op
 
 
 ; insert_obj object destination
@@ -1413,65 +1504,113 @@ set_destination_pointers:
   rjmp decode_op
 
 
-; loadw array word-index -> (result)
-op_loadw:
+; test_attr object attribute ?(label)
+op_test_attr:
 
-  ; index is a word offset
-  lsl r4
-  rol r5
-
-  ; compute array index address
-  add r2, r4
-  adc r3, r5
-
-  ; close ram
-  rcall ram_end
-
-  ; open ram at array cell
-  movw r16, r2
-  clr r18
-  rcall ram_read_start
-
-  ; get value
-  rcall ram_read_pair
-  mov r3, r16
-  mov r2, r17
-
-  ; close ram again
-  rcall ram_end
-
-  ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  ; done, store value
-  rjmp store_op_result
-
-
-; loadb array byte-index -> (result)
-op_loadb:
-
-  ; XXX life & share with loadw
-
-  ; compute array index address
-  add r2, r4
-  adc r3, r5
+  ; null object check
+  tst r2
+  brne PC+5
+  tst r3
+  brne PC+3
+  clt
+  rjmp branch_generic
 
   ; close ram
   rcall ram_end
 
-  ; open ram at array cell
-  movw r16, r2
+  ; find the attribute
+  mov r16, r2
+  mov r17, r4
+  rcall get_attribute_pointer
+
+  ; save bit mask
+  push r16
+
+  ; open ram at attribute position
+  movw r16, YL
   clr r18
   rcall ram_read_start
 
-  ; get value
+  ; read the single byte
   rcall ram_read_byte
-  mov r2, r16
-  clr r3
 
-  ; close ram again
+  rcall ram_end
+
+  ; get bit mask back
+  pop r17
+
+  ; set T if bit is set
+  clt
+  and r16, r17
+  breq PC+2
+  set
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp branch_generic
+
+
+; set/clear attr main routine
+; T: value to set bit to
+write_attr:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp decode_op
+
+  ; close ram
+  rcall ram_end
+
+  ; find the attribute
+  mov r16, r2
+  mov r17, r4
+  rcall get_attribute_pointer
+
+  ; save bitmask
+  push r16
+
+  ; open ram at attribute position
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read the single byte
+  rcall ram_read_byte
+
+  rcall ram_end
+
+  ; save previous value
+  push r16
+
+  ; set up for write to attribute position
+  movw r16, YL
+  clr r18
+  rcall ram_write_start
+
+  ; get value and mask back
+  pop r16
+  pop r17
+
+  ; set or clear bit
+  brtc PC+3
+
+  ; set, just or with the mask
+  or r16, r17
+  rjmp PC+3
+
+  ; clear, complement the mask then and
+  com r17
+  and r16, r17
+
+  ; write it out
+  rcall ram_write_byte
+
   rcall ram_end
 
   ; reopen ram at PC
@@ -1479,8 +1618,84 @@ op_loadb:
   clr r18
   rcall ram_read_start
 
-  ; done, store value
-  rjmp store_op_result
+  rjmp decode_op
+
+; set_attr object attribute
+op_set_attr:
+  set
+  rjmp write_attr
+
+
+; clear_attr object attribute
+op_clear_attr:
+  clt
+  rjmp write_attr
+
+
+; put_prop object property value
+op_put_prop:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp decode_op
+
+  ; close ram
+  rcall ram_end
+
+  ; find the property value
+  mov r16, r2
+  mov r17, r4
+  rcall get_object_property_pointer
+
+  ; done reading properties
+  rcall ram_end
+
+  tst r16
+  brne PC+2
+
+  ; not found, but the spec says it has to be here, so its quite ok to just abort
+  ; XXX idk maybe just return and then we never have fatalities
+  rjmp fatal
+
+  ; put the length aside
+  push r16
+
+  ; prep for write
+  movw r16, YL
+  clr r18
+  rcall ram_write_start
+
+  ; get the length back
+  pop r17
+
+  ; should be two bytes
+  cpi r17, 2
+  brne PC+4
+
+  mov r16, r7
+  rcall ram_write_byte
+  dec r17
+
+  ; but might be one byte, so just store the low byte
+  cpi r17, 1
+  brne PC+4
+
+  mov r16, r6
+  rcall ram_write_byte
+  dec r17
+
+  ; all written (or not, for any other lengths, behaviour is undefined, so we do nothing)
+  rcall ram_end
+
+  ; reset ram to PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
 
 
 ; get_prop object property -> (result)
@@ -1608,339 +1823,46 @@ op_get_prop_addr:
   rjmp store_op_result
 
 
-; add a b -> (result)
-op_add:
-  ; add the args
-  add r2, r4
-  adc r3, r5
-  rjmp store_op_result
+; get_prop_len property-address -> (result)
+op_get_prop_len:
 
+  rcall ram_end
 
-; sub a b -> (result)
-op_sub:
-  ; math up my dudes
-  sub r2, r4
-  sbc r3, r5
-  rjmp store_op_result
-
-
-; mul a b -> (result)
-op_mul:
-
-  ; just the bottom part of a 16x16 multiply chain, because we don't care about
-  ; the top 16 result bits
-  mul r2, r4
-  movw r6, r0
-  mul r3, r4
-  add r7, r0
-  mul r2, r5
-  add r7, r0
-
-  movw r2, r6
-  rjmp store_op_result
-
-
-; div a b -> (result)
-op_div:
-
-  ; check divide-by-zero
-  tst r4
-  brne PC+4
-  tst r5
-  brne PC+2
-
-  ; I mean, what else can you do?
-  rjmp fatal
-
+  ; length is stored one behind given address, so take it back one
   movw r16, r2
-  movw r18, r4
+  subi r16, 1
+  sbci r17, 0
 
-  ; taken from app note AVR200 (div16s)
-  mov  r4, r17        ; move dividend High to sign register
-  eor  r4, r19        ; xor divisor High with sign register
-  sbrs r17, 7         ; if MSB in dividend set
-  rjmp PC+5
-  com  r17            ;    change sign of dividend
-  com  r16
-  subi r16, 0xff
-  sbci r16, 0xff
-  sbrs r19, 7         ; if MSB in divisor set
-  rjmp PC+4
-  com  r19            ;    change sign of divisor
-  neg  r18
-  sbci r19, 0xff
-  clr  r2             ; clear remainder Low byte
-  sub  r3, r3         ; clear remainder High byte and carry
-  ldi  r20, 17        ; init loop counter
-div_loop:
-  rol  r16            ; shift left dividend
-  rol  r17
-  dec  r20            ; decrement counter
-  brne PC+8           ; if done
-  sbrs r4, 7          ;    if MSB in sign register set
-  rjmp PC+4
-  com  r17            ;        change sign of result
-  neg  r16
-  sbci r17, 0xff
-  rjmp div_done       ;    return
-  rol  r2             ; shift dividend into remainder
-  rol  r3
-  sub  r2, r18        ; remainder = remainder - divisor
-  sbc  r3, r19        ;
-  brcc PC+5           ; if result negative
-  add  r2, r18        ;    restore remainder
-  adc  r3, r19
-  clc                 ;    clear carry to be shifted into result
-  rjmp div_loop       ; else
-  sec                 ;    set carry to be shifted into result
-  rjmp div_loop
+  ; setup for read
+  clr r18
+  rcall ram_read_start
 
-div_done:
+  ; read length
+  rcall ram_read_byte
 
-  ; move result to arg0 for store
-  movw r2, r16
+  rcall ram_end
 
-  rjmp store_op_result
+  ; top three bits are the length-1, so shift down and increment
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  lsr r16
+  inc r16
 
-
-; call routine (0..3) -> (result) [v4 call_vs routine (0..3) -> (result)
-op_call:
-
-  ; zero routine address?
-  tst r2
-  brne PC+6
-  tst r3
-  brne PC+4
-
-  ; special case for zero, just push false and return
-  clr r2
+  ; move to arg0 for result
+  mov r2, r16
   clr r3
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
   rjmp store_op_result
 
-  ; close current rem read (instruction)
-  rcall ram_end
 
-  ; save current PC (stack order, push high first)
-  st -X, z_pc_h
-  st -X, z_pc_l
-
-  ; save current argp (stack order, push high first)
-  st -X, z_argp_h
-  st -X, z_argp_l
-
-  ; set new argp to top of stack
-  movw z_argp_l, XL
-
-  ; unpack address
-  lsl r2
-  rol r3
-
-  ; set up to read routine header
-  movw r16, r2
-  clr r18
-  rcall ram_read_start
-
-  ; read local var count
-  rcall ram_read_byte
-
-  ; double it to get number of bytes
-  lsl r16
-
-  ; calculate new PC: start of header + 2x num locals + 1
-  movw z_pc_l, r2
-  add z_pc_l, r16
-  brcc PC+2
-  inc z_pc_h
-  adiw z_pc_l, 1
-
-  ; copy initial values into stacked local vars
-  mov r18, r16
-
-  ; location of arg1 registers (r4:r5) in RAM, so we can walk like memory
-  ldi YL, low(0x0004)
-  ldi YH, high(0x0004)
-
-op_call_set_arg:
-  ; got them all yet?
-  tst r18
-  breq op_call_args_ready
-
-  ; shift type down two (doing first, to throw away first arg which is raddr)
-  lsl z_argtype
-  lsl z_argtype
-  sbr z_argtype, 0x3
-
-  ; do we have an arg
-  mov r16, z_argtype
-  andi r16, 0xc0
-  cpi r16, 0xc0
-  breq op_call_default_args
-
-  ; yes, stack it (stack order, push high first)
-  ld r16, Y+
-  ld r17, Y+
-  st -X, r17
-  st -X, r16
-
-  ; skip two default bytes
-  rcall ram_read_byte
-  rcall ram_read_byte
-  subi r18, 2
-
-  rjmp op_call_set_arg
-
-op_call_default_args:
-  ; fill the rest with default args
-  ; reading z order (h:l), so stacking in stack order (push high first)
-  tst r18
-  breq op_call_args_ready
-  rcall ram_read_byte
-  st -X, r16
-  dec r18
-  rjmp op_call_default_args
-
-op_call_args_ready:
-
-  ; - PC is set
-  ; - argp is set
-  ; - args are filled
-  ; - RAM is open at PC position
-
-  rjmp decode_op
-
-
-; storew array word-index value
-op_storew:
-
-  ; index is a word offset
-  lsl r4
-  rol r5
-
-  ; compute array index address
-  add r2, r4
-  adc r3, r5
-
-  ; close ram
-  rcall ram_end
-
-  ; open ram for write at array cell
-  movw r16, r2
-  clr r18
-  rcall ram_write_start
-
-  ; write value
-  mov r16, r7
-  mov r17, r6
-  rcall ram_write_pair
-
-  ; close ram again
-  rcall ram_end
-
-  ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  ; done!
-  rjmp decode_op
-
-
-; storeb array byte-index value
-op_storeb:
-
-  ; compute array index address
-  add r2, r4
-  adc r3, r5
-
-  ; close ram
-  rcall ram_end
-
-  ; open ram for write at array cell
-  movw r16, r2
-  clr r18
-  rcall ram_write_start
-
-  ; write value
-  mov r16, r6
-  rcall ram_write_byte
-
-  ; close ram again
-  rcall ram_end
-
-  ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  ; done!
-  rjmp decode_op
-
-
-; put_prop object property value
-op_put_prop:
-
-  ; null object check
-  tst r2
-  brne PC+4
-  tst r3
-  brne PC+2
-  rjmp decode_op
-
-  ; close ram
-  rcall ram_end
-
-  ; find the property value
-  mov r16, r2
-  mov r17, r4
-  rcall get_object_property_pointer
-
-  ; done reading properties
-  rcall ram_end
-
-  tst r16
-  brne PC+2
-
-  ; not found, but the spec says it has to be here, so its quite ok to just abort
-  ; XXX idk maybe just return and then we never have fatalities
-  rjmp fatal
-
-  ; put the length aside
-  push r16
-
-  ; prep for write
-  movw r16, YL
-  clr r18
-  rcall ram_write_start
-
-  ; get the length back
-  pop r17
-
-  ; should be two bytes
-  cpi r17, 2
-  brne PC+4
-
-  mov r16, r7
-  rcall ram_write_byte
-  dec r17
-
-  ; but might be one byte, so just store the low byte
-  cpi r17, 1
-  brne PC+4
-
-  mov r16, r6
-  rcall ram_write_byte
-  dec r17
-
-  ; all written (or not, for any other lengths, behaviour is undefined, so we do nothing)
-  rcall ram_end
-
-  ; reset ram to PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp decode_op
-
+; INPUT
 
 ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
 op_sread:
@@ -2406,12 +2328,78 @@ word_done:
   rjmp parse_next_input
 
 
+; CHARACTER BASED OUTPUT
+
 ; print_char output-character-code
 op_print_char:
 
   ; XXX handle about ZSCII and high-order chars
   mov r16, r2
   rcall usart_tx_byte
+  rjmp decode_op
+
+
+; new_line
+op_new_line:
+  rcall usart_newline
+  rjmp decode_op
+
+
+; print (literal_string)
+op_print:
+
+  rcall print_zstring
+
+  ; advance PC
+  add z_pc_l, YL
+  adc z_pc_h, YH
+
+  rjmp decode_op
+
+
+; print_ret (literal-string)
+op_print_ret:
+
+  rcall print_zstring
+
+  ; advance PC
+  add z_pc_l, YL
+  adc z_pc_h, YH
+
+  rcall usart_newline
+
+  rjmp op_rtrue
+
+
+; print_paddr packed-address-of-string
+op_print_paddr:
+
+  ; unpack word
+  lsl r2
+  rol r3
+
+  ; fall through
+
+; print_addr byte-address-of-string
+op_print_addr:
+
+  ; close ram
+  rcall ram_end
+
+  ; open ram at address
+  movw r16, r2
+  clr r18
+  rcall ram_read_start
+
+  rcall print_zstring
+
+  rcall ram_end
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
   rjmp decode_op
 
 
@@ -2483,33 +2471,62 @@ decades:
   .dw 10000, 1000, 100, 10, 1
 
 
-; push value
-op_push:
+; print_obj object
+op_print_obj:
 
-  ; setup for var 0 (stack push)
-  clr r16
-
-  ; store value there
-  movw r0, r2
-  rcall store_variable
-
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
   rjmp decode_op
 
+  ; close ram
+  rcall ram_end
 
-; pull (variable) [v6 pull stack -> (result)]
-op_pull:
-
-  ; load var 0 (stack pull)
-  clr r16
-  rcall load_variable
-
-  ; store to the named var
+  ; get the object pointer
   mov r16, r2
-  rcall store_variable
+  rcall get_object_pointer
+
+  ; add 7 bytes for property pointer
+  adiw YL, 7
+
+  ; open ram at object property pointer
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; read property pointer
+  rcall ram_read_pair
+  mov YL, r17
+  mov YH, r16
+
+  ; close ram again
+  rcall ram_end
+
+  ; move past short name length, don't need it
+  adiw YL, 1
+
+  ; open for read at object name
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  rcall print_zstring
+
+  rcall ram_end
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
 
   rjmp decode_op
 
 
+; UTILITY ROUTINES
+
+; get value of variable
 ; inputs:
 ;   r16: variable number
 ; outputs:
@@ -2562,6 +2579,8 @@ load_variable:
   ld r0, Y+
   ret
 
+
+; store value to variable
 ; inputs:
 ;   r16: variable number
 ;   r0:r1: value
@@ -2634,6 +2653,7 @@ inc_variable:
   rcall store_variable
 
   ret
+
 
 ; decrement variable
 ; inputs:
