@@ -3113,17 +3113,16 @@ print_next:
   ; high bit set means nothing to print, but more to take
   brmi print_next
 
+  ; newline?
+  cpi r16, 0xa
+  brne PC+3
+
+  ; yep, handle that
+  rcall usart_newline
+  rjmp print_next
+
   ; something printable!
   rcall usart_tx_byte
-
-  ; start of newline?
-  cpi r16, 0xa
-  brne print_next
-
-  ; yes, finish it
-  ldi r16, 0xd
-  rcall usart_tx_byte
-
   rjmp print_next
 
 
@@ -3591,9 +3590,9 @@ usart_print:
 ; print a newline
 ; just a convenience, we do this a lot
 usart_newline:
-  ldi r16, 0xa
-  rcall usart_tx_byte
   ldi r16, 0xd
+  rcall usart_tx_byte
+  ldi r16, 0xa
   rjmp usart_tx_byte
 
 
@@ -3651,9 +3650,9 @@ uli_do_enter:
   st Z+, r16
 
   ; echo newline
-  ldi r16, 0xa
-  rcall usart_tx_byte
   ldi r16, 0xd
+  rcall usart_tx_byte
+  ldi r16, 0xa
   rjmp usart_tx_byte
 
   ; that's all the input!
@@ -3750,17 +3749,17 @@ usart_tx_bytes_hex_next:
 
   clr r20
 
-  ldi r16, 0xa
-  rcall usart_tx_byte
   ldi r16, 0xd
+  rcall usart_tx_byte
+  ldi r16, 0xa
   rcall usart_tx_byte
 
   rjmp usart_tx_bytes_hex_next
 
 usart_tx_bytes_hex_done:
-  ldi r16, 0xa
-  rcall usart_tx_byte
   ldi r16, 0xd
+  rcall usart_tx_byte
+  ldi r16, 0xa
   rcall usart_tx_byte
 
   ret
@@ -3891,11 +3890,11 @@ ram_skip_bytes:
 
 
 text_boot_prompt:
-  .db 0xa, 0xd, 0xa, 0xd, "[zap] (r)un (l)oad: ", 0
+  .db 0xd, 0xa, 0xd, 0xa, "[zap] (r)un (l)oad: ", 0
 text_unimplemented:
-  .db 0xa, 0xd, 0xa, 0xd, "unimplemented!", 0xa, 0xd, 0
+  .db 0xd, 0xa, 0xd, 0xa, "unimplemented!", 0xd, 0xa, 0
 text_fatal:
-  .db 0xa, 0xd, 0xa, 0xd, "fatal!", 0xa, 0xd, 0
+  .db 0xd, 0xa, 0xd, 0xa, "fatal!", 0xd, 0xa, 0
 text_pc:
   .db "     PC: ", 0
 text_opcode:
