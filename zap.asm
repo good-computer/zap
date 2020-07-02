@@ -2371,15 +2371,6 @@ op_print_ret:
   rjmp op_rtrue
 
 
-; print_paddr packed-address-of-string
-op_print_paddr:
-
-  ; unpack word
-  lsl r2
-  rol r3
-
-  ; fall through
-
 ; print_addr byte-address-of-string
 op_print_addr:
 
@@ -2389,6 +2380,35 @@ op_print_addr:
   ; open ram at address
   movw r16, r2
   clr r18
+  rcall ram_read_start
+
+  rcall print_zstring
+
+  rcall ram_end
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
+
+
+; print_paddr packed-address-of-string
+op_print_paddr:
+
+  ; close ram
+  rcall ram_end
+
+  ; unpack address. string table for zork extends past 0xffff, so we need to
+  ; run 17 bits here
+  movw r16, r2
+  clr r18
+  lsl r16
+  rol r17
+  rol r18
+
+  ; open ram at address
   rcall ram_read_start
 
   rcall print_zstring
