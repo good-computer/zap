@@ -487,7 +487,7 @@ op_1_table:
   rjmp op_get_prop_len ; get_prop_len property-address -> (result)
   rjmp op_inc          ; inc (variable)
   rjmp unimpl          ; dec (variable)
-  rjmp unimpl          ; print_addr byte-address-of-string
+  rjmp op_print_addr   ; print_addr byte-address-of-string
   rjmp unimpl          ; [v4] call_1s routine -> (result)
   rjmp unimpl          ; remove_obj object
   rjmp op_print_obj    ; print_obj object
@@ -910,12 +910,17 @@ op_jump:
 ; print_paddr packed-address-of-string
 op_print_paddr:
 
-  ; close ram
-  rcall ram_end
-
   ; unpack word
   lsl r2
   rol r3
+
+  ; fall through
+
+; print_addr byte-address-of-string
+op_print_addr:
+
+  ; close ram
+  rcall ram_end
 
   ; open ram at address
   movw r16, r2
