@@ -2335,6 +2335,10 @@ op_print_char:
 
   ; XXX handle about ZSCII and high-order chars
   mov r16, r2
+  cpi r16, 0x20
+  brlo PC+4
+  cpi r16, 0x7f
+  brsh PC+2
   rcall usart_tx_byte
   rjmp decode_op
 
