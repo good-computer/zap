@@ -517,7 +517,7 @@ op_2_table:
   rjmp op_loadb         ; loadb array byte-index -> (result)
   rjmp op_get_prop      ; get_prop object property -> (result)
   rjmp op_get_prop_addr ; get_prop_addr object property -> (result)
-  rjmp unimpl           ; get_next_prop object property -> (result)
+  rjmp op_get_next_prop ; get_next_prop object property -> (result)
   rjmp op_add           ; add a b -> (result)
   rjmp op_sub           ; sub a b -> (result)
   rjmp op_mul           ; mul a b -> (result)
@@ -1905,6 +1905,52 @@ op_get_prop_len:
   rjmp store_op_result
 
 
+; get_next_prop object property -> (result)
+op_get_next_prop:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp store_op_result
+
+  ; close ram
+  rcall ram_end
+
+  ; prep for search
+  mov r16, r2
+  mov r17, r4
+
+  ; see if we want property zero (the first)
+  tst r17
+  brne PC+2
+
+  ; no, so set the "want next" marker bit
+  sbr r17, 0x80
+
+  ; the hunt begins
+  rcall get_object_property_pointer
+
+  ; anything found?
+  tst r16
+  brne PC+2
+
+  ; yes, close ram
+  rcall ram_end
+
+  ; prep return value
+  mov r2, r17
+  clr r3
+
+  ; reset ram
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp store_op_result
+
+
 ; INPUT
 
 ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
@@ -3042,10 +3088,11 @@ get_attribute_pointer:
 ; get pointer to object property
 ; inputs:
 ;   r16: object number
-;   r17: property number
+;   r17: property number (set bit 7 for next)
 ; outputs:
 ;   Y: location of property value
 ;   r16: length of property (0 if not found)
+;   r17: property number found (if 0 or next requested)
 ; if found, leaves ram open for read at property value
 get_object_property_pointer:
 
@@ -3129,12 +3176,32 @@ prop_next:
   ; bottom five bits are property number
   andi r17, 0x1f
 
-  ; did we find it? if not, loop to advance #r16 and retry
+  ; if they asked for property 0, exit at first one
+  tst r18
+  brne PC+2
+  ret
+
+  ; did we find it? great if so!
   cp r17, r18
+  brne PC+2
+  ret
+
+  ; are we looking for the next one? if not, loop
+  tst r18
+  brpl prop_next
+
+  ; we want the next one after the named one. so take off the marker bit, then
+  ; see if we hit the named one
+  mov r19, r18
+  cbr r19, 0x80
+
+  ; now compare. if they're not the same, we can just loop
+  cp r17, r19
   brne prop_next
 
-  ; there we go
-  ret
+  ; same! we want the next one, so we can just ask for property 0
+  clr r18
+  rjmp prop_next
 
 
 ; print zstring at current RAM position (assumed open for reading)
