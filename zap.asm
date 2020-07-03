@@ -515,7 +515,7 @@ op_2_table:
   rjmp op_inc_chk       ; inc_chk (variable) value ?(label)
   rjmp op_jin           ; jin obj1 obj2 ?(label)
   rjmp op_test          ; test bitmap flags ?(label)
-  rjmp unimpl           ; or a b -> (result)
+  rjmp op_or            ; or a b -> (result)
   rjmp op_and           ; and a b -> (result)
   rjmp op_test_attr     ; test_attr object attribute ?(label)
   rjmp op_set_attr      ; set_attr object attribute
@@ -879,6 +879,13 @@ op_dec_chk:
 op_and:
   and r2, r4
   and r3, r5
+  rjmp store_op_result
+
+
+; or a b -> (result)
+op_or:
+  or r2, r4
+  or r3, r5
   rjmp store_op_result
 
 
