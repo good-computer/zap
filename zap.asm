@@ -1360,6 +1360,27 @@ op_insert_obj:
 
   rcall ram_end
 
+  ; in C, it would go like this:
+  ;
+  ; O: object
+  ; D: destination object
+  ;
+  ; if (O->parent->child == O) {
+  ;   O->parent->child = O->sibling;
+  ; }
+  ; else {
+  ;   for (OS = O->parent->child; OS; OS = OS->sibling) {
+  ;     if (OS->sibling = O) {
+  ;       OS->sibling = O->sibling;
+  ;       break;
+  ;     }
+  ;   }
+  ; }
+  ;
+  ; O->parent = D;
+  ; O->sibling = D->child;
+  ; D->child = O;
+
   ; first we need to detach the object from its parent's list of children
 
   ; load our object to get its parent pointer
