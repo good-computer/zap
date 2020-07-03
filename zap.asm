@@ -22,7 +22,10 @@
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
 ; SP <-----------
 ;    ... LH LH LH
-.equ z_stack_top = 0x03e0
+.equ z_stack_top = 0x03de
+
+.equ rand_l = 0x03de
+.equ rand_h = 0x03df
 
 ; input buffer
 ; enough room for 0x44 requested by zork
@@ -144,6 +147,12 @@ main:
   ; distance from boot prompt
   rcall usart_newline
   rcall usart_newline
+
+  ; reset rng
+  clr r16
+  sts rand_h, r16
+  inc r16
+  sts rand_l, r16
 
   ; zero stack
   ldi XL, low(z_stack_top)
@@ -539,7 +548,7 @@ op_v_table:
   rjmp op_sread      ; sread text parse [v4 sread text parse time routing] [v5 aread text parse time routine -> (result)]
   rjmp op_print_char ; print_char output-character-code
   rjmp op_print_num  ; print_num value
-  rjmp unimpl        ; random range -> (result)
+  rjmp op_random     ; random range -> (result)
   rjmp op_push       ; push value
   rjmp op_pull       ; pull (variable) [v6 pull stack -> (result)]
   rjmp unimpl        ; [v3] split_window lines
@@ -2594,6 +2603,70 @@ op_print_obj:
   rcall ram_read_start
 
   rjmp decode_op
+
+
+; MISCELLANEOUS
+
+; random range -> (result)
+op_random:
+  
+  ; reseed test
+  tst r2
+  brmi rand_neg
+  brne PC+3
+  tst r3
+  breq rand_zero
+
+  ; load seed
+  lds r16, rand_l
+  lds r17, rand_h
+
+  ; Xorshift (Marsaglia 2003) variant RNG
+  ; adapted from http://www.retroprogramming.com/2017/07/xorshift-pseudorandom-numbers-in-z80.html
+  mov r18, r17
+  lsr r18
+  mov r18, r16
+  ror r18
+  eor r18, r17
+  mov r17, r18
+  ror r18
+  eor r18, r16
+  mov r16, r18
+  eor r18, r17
+  mov r17, r18
+
+  ; store result as new seed
+  sts rand_l, r16
+  sts rand_h, r17
+
+  ; divide by incoming range
+  movw r18, r2
+  rcall divide
+
+  ; remainder in r2:r3, return it
+  rjmp store_op_result
+
+rand_neg:
+  ; negative, seed from arg
+  sts rand_l, r2
+  sts rand_h, r3
+
+  ; return 0
+  clr r2
+  clr r3
+  rjmp store_op_result
+
+rand_zero:
+  ; zero, reseed and return 0
+  ; XXX if we had a clock, we'd use that. we don't, so just reset to "normal"
+  clr r16
+  sts rand_h, r16
+  inc r16
+  sts rand_l, r16
+
+  ; r2:r3 already zero
+  rjmp store_op_result
+
 
 
 ; UTILITY ROUTINES
