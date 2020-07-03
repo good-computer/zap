@@ -793,48 +793,7 @@ op_div:
 
   movw r16, r2
   movw r18, r4
-
-  ; taken from app note AVR200 (div16s)
-  mov  r4, r17        ; move dividend High to sign register
-  eor  r4, r19        ; xor divisor High with sign register
-  sbrs r17, 7         ; if MSB in dividend set
-  rjmp PC+5
-  com  r17            ;    change sign of dividend
-  com  r16
-  subi r16, 0xff
-  sbci r16, 0xff
-  sbrs r19, 7         ; if MSB in divisor set
-  rjmp PC+4
-  com  r19            ;    change sign of divisor
-  neg  r18
-  sbci r19, 0xff
-  clr  r2             ; clear remainder Low byte
-  sub  r3, r3         ; clear remainder High byte and carry
-  ldi  r20, 17        ; init loop counter
-div_loop:
-  rol  r16            ; shift left dividend
-  rol  r17
-  dec  r20            ; decrement counter
-  brne PC+8           ; if done
-  sbrs r4, 7          ;    if MSB in sign register set
-  rjmp PC+4
-  com  r17            ;        change sign of result
-  neg  r16
-  sbci r17, 0xff
-  rjmp div_done       ;    return
-  rol  r2             ; shift dividend into remainder
-  rol  r3
-  sub  r2, r18        ; remainder = remainder - divisor
-  sbc  r3, r19        ;
-  brcc PC+5           ; if result negative
-  add  r2, r18        ;    restore remainder
-  adc  r3, r19
-  clc                 ;    clear carry to be shifted into result
-  rjmp div_loop       ; else
-  sec                 ;    set carry to be shifted into result
-  rjmp div_loop
-
-div_done:
+  rcall divide
 
   ; move result to arg0 for store
   movw r2, r16
@@ -2889,6 +2848,50 @@ branch_check_invert:
   rcall ram_read_start
 
   rjmp decode_op
+
+
+; perform signed divide r16:r17 / r18:r19
+; returns quotient in r16:r17, remainder in r2:r3
+divide:
+  ; taken from app note AVR200 (div16s)
+  mov  r4, r17        ; move dividend High to sign register
+  eor  r4, r19        ; xor divisor High with sign register
+  sbrs r17, 7         ; if MSB in dividend set
+  rjmp PC+5
+  com  r17            ;    change sign of dividend
+  com  r16
+  subi r16, 0xff
+  sbci r16, 0xff
+  sbrs r19, 7         ; if MSB in divisor set
+  rjmp PC+4
+  com  r19            ;    change sign of divisor
+  neg  r18
+  sbci r19, 0xff
+  clr  r2             ; clear remainder Low byte
+  sub  r3, r3         ; clear remainder High byte and carry
+  ldi  r20, 17        ; init loop counter
+div_loop:
+  rol  r16            ; shift left dividend
+  rol  r17
+  dec  r20            ; decrement counter
+  brne PC+7           ; if done
+  sbrs r4, 7          ;    if MSB in sign register set
+  ret
+  com  r17            ;        change sign of result
+  neg  r16
+  sbci r17, 0xff
+  ret                 ;    return
+  rol  r2             ; shift dividend into remainder
+  rol  r3
+  sub  r2, r18        ; remainder = remainder - divisor
+  sbc  r3, r19        ;
+  brcc PC+5           ; if result negative
+  add  r2, r18        ;    restore remainder
+  adc  r3, r19
+  clc                 ;    clear carry to be shifted into result
+  rjmp div_loop       ; else
+  sec                 ;    set carry to be shifted into result
+  rjmp div_loop
 
 
 unimpl:
