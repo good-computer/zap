@@ -489,7 +489,7 @@ op_1_table:
   rjmp unimpl          ; dec (variable)
   rjmp op_print_addr   ; print_addr byte-address-of-string
   rjmp unimpl          ; [v4] call_1s routine -> (result)
-  rjmp unimpl          ; remove_obj object
+  rjmp op_remove_obj   ; remove_obj object
   rjmp op_print_obj    ; print_obj object
   rjmp op_ret          ; ret value
   rjmp op_jump         ; jump ?(label)
@@ -1360,11 +1360,86 @@ op_insert_obj:
 
   rcall ram_end
 
-  ; in C, it would go like this:
-  ;
-  ; O: object
-  ; D: destination object
-  ;
+  rcall detach_object
+
+  ; O->parent = D;
+  ; O->sibling = D->child;
+  ; D->child = O;
+
+  ; get the destinations child object, so we can hook it up as our sibling
+  mov r16, r4
+  rcall get_object_pointer
+  adiw YL, 6 ; move to child
+
+  movw r16, YL
+  clr r18
+  rcall ram_read_start
+
+  ; get child
+  rcall ram_read_byte
+  mov r6, r16
+
+  rcall ram_end
+
+  ; and replacing destination child with moving object
+  movw r16, YL
+  clr r18
+  rcall ram_write_start
+
+  mov r16, r2
+  rcall ram_write_byte
+
+  rcall ram_end
+
+  ; now set up to write to the moving object
+  mov r16, r2
+  rcall get_object_pointer
+  adiw YL, 4 ; move to parent
+
+  movw r16, YL
+  clr r18
+  rcall ram_write_start
+
+  ; write new parent and sibling (dest, and dest's child)
+  mov r16, r4
+  mov r17, r6
+  rcall ram_write_pair
+
+  rcall ram_end
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
+
+
+; remove_obj object
+op_remove_obj:
+
+  ; null object check
+  tst r2
+  brne PC+4
+  tst r3
+  brne PC+2
+  rjmp decode_op
+
+  rcall ram_end
+
+  rcall detach_object
+
+  ; reopen ram at PC
+  movw r16, z_pc_l
+  clr r18
+  rcall ram_read_start
+
+  rjmp decode_op
+
+
+; detach object in r2 from its parent
+detach_object:
+
   ; if (O->parent->child == O) {
   ;   O->parent->child = O->sibling;
   ; }
@@ -1376,10 +1451,6 @@ op_insert_obj:
   ;     }
   ;   }
   ; }
-  ;
-  ; O->parent = D;
-  ; O->sibling = D->child;
-  ; D->child = O;
 
   ; first we need to detach the object from its parent's list of children
 
@@ -1430,7 +1501,7 @@ op_insert_obj:
 
   rcall ram_end
 
-  rjmp set_destination_pointers
+  ret
 
 unlink_object:
 
@@ -1441,7 +1512,8 @@ unlink_object:
 
   ; end of list
   tst r16
-  breq set_destination_pointers
+  brne PC+2
+  ret
 
   rcall get_object_pointer
   adiw YL, 5 ; move to sibling
@@ -1472,57 +1544,7 @@ unlink_object:
   mov r16, r7
   rcall ram_write_byte
 
-  rcall ram_end
-
-set_destination_pointers:
-
-  ; get the destinations child object, so we can hook it up as our sibling
-  mov r16, r4
-  rcall get_object_pointer
-  adiw YL, 6 ; move to child
-
-  movw r16, YL
-  clr r18
-  rcall ram_read_start
-
-  ; get child
-  rcall ram_read_byte
-  mov r6, r16
-
-  rcall ram_end
-
-  ; and replacing destination child with moving object
-  movw r16, YL
-  clr r18
-  rcall ram_write_start
-
-  mov r16, r2
-  rcall ram_write_byte
-
-  rcall ram_end
-
-  ; now set up to write to the moving object
-  mov r16, r2
-  rcall get_object_pointer
-  adiw YL, 4 ; move to parent
-
-  movw r16, YL
-  clr r18
-  rcall ram_write_start
-
-  ; write new parent and sibling (dest, and dest's child)
-  mov r16, r4
-  mov r17, r6
-  rcall ram_write_pair
-
-  rcall ram_end
-
-  ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
-  rcall ram_read_start
-
-  rjmp decode_op
+  rjmp ram_end
 
 
 ; test_attr object attribute ?(label)
