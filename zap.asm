@@ -503,7 +503,7 @@ op_1_table:
   rjmp op_ret          ; ret value
   rjmp op_jump         ; jump ?(label)
   rjmp op_print_paddr  ; print_paddr packed-address-of-string
-  rjmp unimpl          ; load (variable) -> result
+  rjmp op_load         ; load (variable) -> (result)
   rjmp unimpl          ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
@@ -576,6 +576,18 @@ op_v_table:
 
 
 ; READING AND WRITING MEMORY
+
+; load (variable) -> (result)
+op_load:
+
+  ; load value
+  mov r16, r2
+  rcall load_variable
+
+  ; copy result to arg0 and store it
+  movw r2, r0
+  rjmp store_op_result
+
 
 ; store (variable) value
 op_store:
