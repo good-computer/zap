@@ -504,7 +504,7 @@ op_1_table:
   rjmp op_jump         ; jump ?(label)
   rjmp op_print_paddr  ; print_paddr packed-address-of-string
   rjmp op_load         ; load (variable) -> (result)
-  rjmp unimpl          ; not value -> (result) [v5 call_1n routine]
+  rjmp op_not          ; not value -> (result) [v5 call_1n routine]
 
 op_2_table:
   rjmp unimpl           ; [nonexistent]
@@ -879,6 +879,15 @@ op_dec_chk:
 op_and:
   and r2, r4
   and r3, r5
+  rjmp store_op_result
+
+
+; not value -> (result) [v5 call_1n routine]
+op_not:
+
+  ; flip those bits
+  com r2
+  com r3
   rjmp store_op_result
 
 
