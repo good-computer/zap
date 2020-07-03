@@ -531,7 +531,7 @@ op_2_table:
   rjmp op_sub           ; sub a b -> (result)
   rjmp op_mul           ; mul a b -> (result)
   rjmp op_div           ; div a b -> (result)
-  rjmp unimpl           ; mod a b -> (result)
+  rjmp op_mod           ; mod a b -> (result)
   rjmp unimpl           ; [v4] call_2s routine arg1 -> (result)
   rjmp unimpl           ; [v5] call_2n routine arg1
   rjmp unimpl           ; [v5] set_colour foreground background [v6 set_colour foreground background window]
@@ -828,6 +828,26 @@ op_div:
   ; move result to arg0 for store
   movw r2, r16
 
+  rjmp store_op_result
+
+
+; mod a b -> (result)
+op_mod:
+
+  ; check divide-by-zero
+  tst r4
+  brne PC+4
+  tst r5
+  brne PC+2
+
+  ; I mean, what else can you do?
+  rjmp fatal
+
+  movw r16, r2
+  movw r18, r4
+  rcall divide
+
+  ; remainder already in r2:r3
   rjmp store_op_result
 
 
