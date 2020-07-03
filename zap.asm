@@ -480,7 +480,7 @@ op_0_table:
   rjmp unimpl        ; restore ?(label) [v4 restore -> (result)] [v5 illegal]
   rjmp unimpl        ; restart
   rjmp op_ret_popped ; ret_popped
-  rjmp unimpl        ; pop [v5/6 catch -> (result)]
+  rjmp op_pop        ; pop [v5/6 catch -> (result)]
   rjmp wd_reset      ; quit
   rjmp op_new_line   ; new_line
   rjmp unimpl        ; [v3] show_status [v4 illegal]
@@ -750,6 +750,15 @@ op_pull:
   ; store to the named var
   mov r16, r2
   rcall store_variable
+
+  rjmp decode_op
+
+
+; pop [v5/6 catch -> (result)]
+op_pop:
+
+  ; take top item on stack and drop it
+  adiw XL, 2
 
   rjmp decode_op
 
