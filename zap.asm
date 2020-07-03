@@ -2649,7 +2649,11 @@ op_random:
   movw r18, r2
   rcall divide
 
-  ; remainder in r2:r3, return it
+  ; remainder in r2:r3, add one to bring it into range
+  inc r2
+  brne PC+2
+  inc r3
+
   rjmp store_op_result
 
 rand_neg:
