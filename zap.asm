@@ -1460,6 +1460,24 @@ op_remove_obj:
 
   rcall detach_object
 
+  ; zero parent/sibling on the target object
+
+  mov r16, r2
+  rcall get_object_pointer
+  adiw YL, 4 ; move to parent
+
+  ; prep for write
+  movw r16, YL
+  clr r18
+  rcall ram_write_start
+
+  ; zero parent and sibling
+  clr r16
+  clr r17
+  rcall ram_write_pair
+
+  rcall ram_end
+
   ; reopen ram at PC
   movw r16, z_pc_l
   clr r18
