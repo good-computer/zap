@@ -1,36 +1,40 @@
-; vim: ft=avr
+; GOOD COMPUTER: Z-machine interpreter
+; Copyright (c) 2020 Rob Norris
 
-;.device ATmega8
-.include "m8def.inc"
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-; global variable space 240 vars * 2 bytes, 0x0060-0x0240
+.include "m88def.inc"
+
+; global variable space 240 vars * 2 bytes, 0x0100-0x02e0
 ; stores in z-machine order (H:L)
-.equ z_global_vars = 0x0060
+.equ z_global_vars = 0x0100
 
 ; story file header (first 0x10 bytes)
-.equ z_header = 0x0240
+.equ z_header = 0x02e0
 
 ; temp space for separator list during input parsing
-.equ separator_buffer     = 0x0250
-.equ separator_buffer_end = 0x0258
+.equ separator_buffer     = 0x02f0
+.equ separator_buffer_end = 0x02f8
 
 ; temp space for expanding current dictionary word during input parsing
-.equ word_buffer     = 0x0258
-.equ word_buffer_end = 0x0260
+.equ word_buffer     = 0x02f8
+.equ word_buffer_end = 0x0300
 
 
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
 ; SP <-----------
 ;    ... LH LH LH
-.equ z_stack_top = 0x03de
+.equ z_stack_top = 0x047e
 
-.equ rand_l = 0x03de
-.equ rand_h = 0x03df
+.equ rand_l = 0x047e
+.equ rand_h = 0x047f
 
 ; input buffer
 ; enough room for 0x44 requested by zork
-.equ input_buffer     = 0x03e0
-.equ input_buffer_end = 0x0430
+.equ input_buffer     = 0x0480
+.equ input_buffer_end = 0x04d0
 
 ; zmachine program counter
 .def z_pc_l = r24
@@ -79,6 +83,20 @@
 
 reset:
 
+  ; clear reset state and disable watchdog
+  cli
+  wdr
+  in r16, MCUSR
+  cbr r16, (1<<WDRF)
+  out MCUSR, r16
+  lds r16, WDTCSR
+  lds r16, WDTCSR
+  sbr r16, (1<<WDCE) | (1<<WDE)
+  sts WDTCSR, r16
+  cbr r16, (1<<WDE)
+  sts WDTCSR, r16
+  sei
+
   ; setup stack pointer
   ldi r16, low(RAMEND)
   ldi r17, high(RAMEND)
@@ -86,28 +104,32 @@ reset:
   out SPH, r17
 
   ; usart tx/rx enable
-  ldi r16, (1<<RXEN | 1<<TXEN)
-  out UCSRB, r16
+  ldi r16, (1<<RXEN0) | (1<<TXEN0)
+  sts UCSR0B, r16
 
-  ; usart frame config: 8N1 (8 data bits => UCSZ2:0 = 011)
-  ldi r16, (1<<URSEL) | (1<<UCSZ0) | (1<<UCSZ1)
-  out UCSRC, r16
+  ; usart frame format: 8N1 (8 data bits => UCSZ2:0 = 011, no parity => UPM1:0 = 00, 1 stop bit => USBS = 0)
+  ldi r16, (1<<UCSZ00) | (1<<UCSZ01)
+  sts UCSR0C, r16
 
   ; usart 38400 baud at 16MHz => UBRR = 25
   ldi r16, 25
   ldi r17, 0
-  out UBRRL, r16
-  out UBRRH, r17
+  sts UBRR0L, r16
+  sts UBRR0H, r17
 
-  ; output: PB0 = error LED, PB1 = user LED
+  ; output: PB0 = error LED
   ;         PB2 = SPI /SS (SRAM /CS), PB3 = SPI MOSI, PB5 = SPI SCK
   ; input: PB4 = SPI MISO
-  ; don't care: PB7
-  ldi r16, (1<<PB0) | (1<<PB1) | (1<<PB2) | (1<<PB3) | (1<<PB5)
+  ; don't care: PB1, PB7
+  ldi r16, (1<<PB0) | (1<<PB2) | (1<<PB3) | (1<<PB5)
   out DDRB, r16
   ; drive SPI /SS high to disable it
   ldi r16, (1<<PB2)
   out PORTB, r16
+
+  ; output: PD7 = user LED
+  ldi r16, (1<<PD7)
+  out DDRD, r16
 
   ; enable SPI, master mode, clock rate fck/4 (4MHz)
   ldi r16, (1<<SPE) | (1<<MSTR)
@@ -3073,7 +3095,7 @@ wd_reset:
   ; enable watchdog timer to force reset in ~16ms
   cli
   ldi r16, (1<<WDE)
-  out WDTCR, r16
+  sts WDTCSR, r16
   rjmp PC
 
 dump:
@@ -3653,13 +3675,13 @@ xmodem_load_ram:
 
   ; CTC mode, /1024 prescaler
   ldi r16, (1<<WGM12)|(1<<CS12)|(1<<CS10)
-  out TCCR1B, r16
+  sts TCCR1B, r16
 
   ; ~2-3s
   ldi r16, low(0xb718)
   ldi r17, high(0xb718)
-  out OCR1AH, r17
-  out OCR1AL, r16
+  sts OCR1AH, r17
+  sts OCR1AL, r16
 
   ; 10 tries
   ldi r17, 10
@@ -3671,22 +3693,24 @@ xlr_try_handshake:
 
   ; clear counter
   clr r16
-  out TCNT1H, r16
-  out TCNT1L, r16
+  sts TCNT1H, r16
+  sts TCNT1L, r16
 
   ; loop until timer expires, or usart becomes readable
-  in r16, TIFR
+xlr_timer_wait:
+  in r16, TIFR1
   sbrc r16, OCF1A
   rjmp xlr_timer_expired
-  sbic UCSRA, RXC
+  lds r18, UCSR0A
+  sbrc r18, RXC0
   rjmp xlr_ready
-  rjmp PC-5
+  rjmp xlr_timer_wait
 
 xlr_timer_expired:
 
   ; acknowledge timer
   ldi r16, (1<<OCF1A)
-  out TIFR, r16
+  out TIFR1, r16
 
   ; out of tries?
   dec r17
@@ -3694,7 +3718,7 @@ xlr_timer_expired:
 
   ; disable timer
   clr r16
-  out TCCR1B, r16
+  sts TCCR1B, r16
 
   ; error indicator on
   sbi PORTB, PB0
@@ -3704,7 +3728,7 @@ xlr_ready:
 
   ; disable timer
   clr r16
-  out TCCR1B, r16
+  sts TCCR1B, r16
 
   ; ok, we're really doing this. set up to recieve
 
@@ -3802,11 +3826,10 @@ xlr_done:
 ; outputs:
 ;   r16: received byte
 usart_rx_byte:
-  sbis UCSRA, RXC
-  rjmp PC-1
-
-  in r16, UDR
-
+  lds r16, UCSR0A
+  sbrs r16, RXC0
+  rjmp PC-3
+  lds r16, UDR0
   ret
 
 
@@ -3816,9 +3839,10 @@ usart_rx_byte:
 ;   r16: received byte, if there was one
 usart_rx_byte_maybe:
   clt
-  sbis UCSRA, RXC
+  lds r16, UCSR0A
+  sbrs r16, RXC0
   ret
-  in r16, UDR
+  lds r16, UDR0
   set
   ret
 
@@ -3827,11 +3851,12 @@ usart_rx_byte_maybe:
 ; inputs:
 ;   r16: byte to send
 usart_tx_byte:
-  sbis UCSRA, UDRE
-  rjmp PC-1
-
-  out UDR, r16
-
+  push r16
+  lds r16, UCSR0A
+  sbrs r16, UDRE0
+  rjmp PC-3
+  pop r16
+  sts UDR0, r16
   ret
 
 
@@ -4061,19 +4086,23 @@ ram_start:
 
   ; send command
   out SPDR, r19
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r19, SPSR
+  sbrs r19, SPIF
+  rjmp PC-2
 
   ; send address
   out SPDR, r18
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r19, SPSR
+  sbrs r19, SPIF
+  rjmp PC-2
   out SPDR, r17
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r19, SPSR
+  sbrs r19, SPIF
+  rjmp PC-2
   out SPDR, r16
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r19, SPSR
+  sbrs r19, SPIF
+  rjmp PC-2
 
   ret
 
@@ -4084,13 +4113,14 @@ ram_end:
 
 ; pull stuff from SRAM, previously set up with ram_read_start
 ;   r16: number of bytes to read
-;   Y: where to store it
+;   Z: where to store it
 ram_read_bytes:
   out SPDR, r16
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r17, SPSR
+  sbrs r17, SPIF
+  rjmp PC-2
   in r17, SPDR
-  st Y+, r17
+  st Z+, r17
   dec r16
   brne ram_read_bytes
   ret
@@ -4099,8 +4129,9 @@ ram_read_bytes:
 ;   r16: byte read
 ram_read_byte:
   out SPDR, r16
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r16, SPSR
+  sbrs r16, SPIF
+  rjmp PC-2
   in r16, SPDR
   ret
 
@@ -4108,23 +4139,26 @@ ram_read_byte:
 ;   r16:r17: byte pair read
 ram_read_pair:
   out SPDR, r16
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r16, SPSR
+  sbrs r16, SPIF
+  rjmp PC-2
   in r16, SPDR
   out SPDR, r17
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r17, SPSR
+  sbrs r17, SPIF
+  rjmp PC-2
   in r17, SPDR
   ret
 
 ; write stuff to SRAM, previously set up with ram_write_start
 ;   r16: number of bytes to write
-;   Y: pointer to stuff to write
+;   Z: pointer to stuff to write
 ram_write_bytes:
-  ld r17, Y+
+  ld r17, Z+
   out SPDR, r17
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r17, SPSR
+  sbrs r17, SPIF
+  rjmp PC-2
   dec r16
   brne ram_write_bytes
   ret
@@ -4133,8 +4167,9 @@ ram_write_bytes:
 ;   r16: byte to write
 ram_write_byte:
   out SPDR, r16
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r16, SPSR
+  sbrs r16, SPIF
+  rjmp PC-2
   ret
 
 ; write two bytse to SRAM, previously set up with ram_write_start
@@ -4142,19 +4177,22 @@ ram_write_byte:
 ;   r17: second byte to write
 ram_write_pair:
   out SPDR, r16
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r16, SPSR
+  sbrs r16, SPIF
+  rjmp PC-2
   out SPDR, r17
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r17, SPSR
+  sbrs r17, SPIF
+  rjmp PC-2
   ret
 
 ; skip bytes
 ;   r16: number to skip
 ram_skip_bytes:
   out SPDR, r16
-  sbis SPSR, SPIF
-  rjmp PC-1
+  in r17, SPSR
+  sbrs r17, SPIF
+  rjmp PC-2
   dec r16
   brne ram_skip_bytes
   ret
@@ -4180,3 +4218,6 @@ text_arg2:
   .db "  arg 2: ", 0
 text_arg3:
   .db "  arg 3: ", 0
+
+; vim: ft=avr
+
