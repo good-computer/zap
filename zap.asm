@@ -1,4 +1,9 @@
-; vim: ft=avr
+; GOOD COMPUTER: Z-machine interpreter
+; Copyright (c) 2020 Rob Norris
+
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 ;.device ATmega8
 .include "m8def.inc"
@@ -4180,3 +4185,6 @@ text_arg2:
   .db "  arg 2: ", 0
 text_arg3:
   .db "  arg 3: ", 0
+
+; vim: ft=avr
+
