@@ -2071,18 +2071,19 @@ op_sread:
   ldi ZL, low(input_buffer)
   ldi ZH, high(input_buffer)
 
-  ld r16, Z+
+  ld r17, Z+
 
   ; convert to lowercase
-  cpi r16, 'A'
+  cpi r17, 'A'
   brlo PC+4
-  cpi r16, 'Z'+1
+  cpi r17, 'Z'+1
   brsh PC+2
-  ori r16, 0x20 ; convert
+  ori r17, 0x20 ; convert
 
+  mov r16, r17
   rcall ram_write_byte
-  tst r16
-  brne PC-8
+  tst r17
+  brne PC-9
 
   rcall ram_end
 
