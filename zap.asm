@@ -198,6 +198,24 @@ main:
 
   ; XXX fill header?
 
+  ; version check
+  lds r16, z_header
+  tst r16
+  breq PC+3
+  cpi r16, 2 ; no support for v2+
+  brlo PC+10
+
+  ldi ZL, low(text_unsupported_version*2)
+  ldi ZH, high(text_unsupported_version*2)
+  rcall usart_print_static
+
+  lds r16, z_header
+  ori r16, 0x30
+  rcall usart_tx_byte
+  rcall usart_newline
+
+  rjmp wd_reset
+
   ; load globals
   lds r16, z_header+0xd
   lds r17, z_header+0xc
@@ -4215,6 +4233,9 @@ text_arg2:
   .db "  arg 2: ", 0
 text_arg3:
   .db "  arg 3: ", 0
+
+text_unsupported_version:
+  .db 0xd, 0xa, 0xd, 0xa, "unsupported version ", 0
 
 ; vim: ft=avr
 
