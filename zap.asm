@@ -202,7 +202,7 @@ main:
   lds r16, z_header
   tst r16
   breq PC+3
-  cpi r16, 2 ; no support for v2+
+  cpi r16, 3 ; no support for v3+
   brlo PC+10
 
   ldi ZL, low(text_unsupported_version*2)
