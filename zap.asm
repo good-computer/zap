@@ -157,7 +157,7 @@ boot_key:
   brne boot_key
 
   rcall xmodem_load_ram
-  rjmp boot
+  rjmp wd_reset
 
 
 main:
@@ -3685,6 +3685,12 @@ xmodem_load_ram:
   ; error indicator off
   cbi PORTB, PB0
 
+  ; try to get their attention
+  sbi PORTB, PB1
+  ldi ZL, low(text_xmodem_start*2)
+  ldi ZH, high(text_xmodem_start*2)
+  rcall usart_print_static
+
   ; xmodem receiver: send NAK, wait for data to arrive
   ; XXX implement 10x10 retry
 
@@ -3735,11 +3741,18 @@ xlr_timer_expired:
   clr r16
   sts TCCR1B, r16
 
-  ; error indicator on
+  ; error indicator on, waiting indicator off
   sbi PORTB, PB0
-  ret
+  cbi PORTB, PB1
+
+  ldi ZL, low(text_xmodem_timeout*2)
+  ldi ZH, high(text_xmodem_timeout*2)
+  rjmp usart_print_static
 
 xlr_ready:
+
+  ; waiting indicator off
+  cbi PORTB, PB1
 
   ; disable timer
   clr r16
@@ -4233,6 +4246,11 @@ text_arg2:
   .db "  arg 2: ", 0
 text_arg3:
   .db "  arg 3: ", 0
+
+text_xmodem_start:
+  .db 0xd, 0xa, 0xd, 0xa, "start XMODEM send now", 0xd, 0xa, 0
+text_xmodem_timeout:
+  .db "timed out", 0xd, 0xa, 0
 
 text_unsupported_version:
   .db 0xd, 0xa, 0xd, 0xa, "unsupported version ", 0
