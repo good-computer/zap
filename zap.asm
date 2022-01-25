@@ -3597,14 +3597,20 @@ convert_wide_zchar:
 
 lookup_zchar:
 
-  ; compute alphabet offset
+  ; set up pointer to start of alphabets for this version
+  lds r17, z_header
+  cpi r17, 1
+  brne PC+4
+  ldi ZL, low(zchar_alphabet_v1*2)
+  ldi ZH, high(zchar_alphabet_v1*2)
+  rjmp PC+3
+  ldi ZL, low(zchar_alphabet_v2*2)
+  ldi ZH, high(zchar_alphabet_v2*2)
+
+  ; compute and add alphabet offset
   mov r0, r11
   ldi r17, 0x20
   mul r0, r17
-
-  ; compute pointer to start of wanted alphabet
-  ldi ZL, low(zchar_alphabet*2)
-  ldi ZH, high(zchar_alphabet*2)
   add ZL, r0
   brcc PC+2
   inc ZH
@@ -3644,8 +3650,9 @@ zstring_done:
 ; 0x3 dec current alphabet
 ; 0x4 inc current alphabet, set lock
 ; 0x5 dec current alphabet, set lock
+; 0x6 abbreviation
 
-zchar_alphabet:
+zchar_alphabet_v1:
   ; A0
   .db " ", 0x0, 0x2, 0x3, 0x4, 0x5, "abcdefghijklmnopqrstuvwxyz"
   ; A1
@@ -3654,6 +3661,15 @@ zchar_alphabet:
   .db " ", 0x0, 0x2, 0x3, 0x4, 0x5, 0x1, "0123456789.,!?_#'"
     .db 0x22, "/\<-:()" ; work around avra's buggy string parser (raw double-quote byte)
 
+zchar_alphabet_v2:
+  ; A0
+  .db " ", 0x6, 0x2, 0x3, 0x4, 0x5, "abcdefghijklmnopqrstuvwxyz"
+  ; A1
+  .db " ", 0x6, 0x2, 0x3, 0x4, 0x5, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  ; A2
+  .db " ", 0x6, 0x2, 0x3, 0x4, 0x5, 0x1, 0x0, "0123456789.,!?_#"
+    .db 0x27, 0x22, "/\-:()"
+
 zchar_op_table:
   rjmp zchar_op_newline
   rjmp zchar_op_widechar
@@ -3661,6 +3677,7 @@ zchar_op_table:
   rjmp zchar_op_dec_alphabet
   rjmp zchar_op_inc_lock_alphabet
   rjmp zchar_op_dec_lock_alphabet
+  ret ; zchar_op_abbrev
 
 zchar_op_newline:
   ldi r16, 0xa
