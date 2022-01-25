@@ -2727,7 +2727,7 @@ op_print_obj:
 
 ; random range -> (result)
 op_random:
-  
+
   ; reseed test
   tst r2
   brmi rand_neg
