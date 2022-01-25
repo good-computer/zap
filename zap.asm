@@ -3538,68 +3538,31 @@ next_zchar:
   ret
 
   ; decode!
-  cpi r16, 7
-  brsh convert_zchar
+  rcall lookup_zchar
 
-  ; check for the "wide char" flag (A2:6)
-  cpi r16, 6
-  brne PC+7
+  ; if its printable, just return it
+  cpi r16, 0x20
+  brlo PC+3
 
-  ; its 6, so check alphabet
-  mov r17, r11
-  cpi r17, 2
-  brne convert_zchar
+  ; reset to lock alphabet
+  mov r11, r10
 
-  ; stack next two chars and deal with them
-  ldi r18, 2
+  ret
 
+  ; set up for zchar op call
+  ldi ZL, low(zchar_op_table)
+  ldi ZH, high(zchar_op_table)
+
+  ; add the opcode to get the op vector
+  add ZL, r16
+  brcc PC+2
+  inc ZH
+
+  ; flag response as unprintable
   sbr r16, 0x80
-  ret
 
-  ; handle control char
-  tst r16
-  brne PC+3
-
-  ; 0: space
-  ldi r16, ' '
-  ret
-
-  cpi r16, 1
-  brne PC+3
-
-  ; 1: newline
-  ldi r16, 0xa
-  ret
-
-  ; 2-5: change alphabets
-
-  ; 2 010 inc current
-  ; 3 011 dec current
-  ; 4 110 inc current, set lock
-  ; 5 111 dec current, set lock
-
-  ; bit 0: clear=inc, set=dec
-  sbrc r16, 0
-  rjmp PC+3
-  inc r11
-  rjmp PC+2
-  dec r11
-
-  ; clamp r11 to 0-2 (sigh)
-  mov r17, r11
-  sbrc r17, 7
-  ldi r17, 2
-  cpi r17, 3
-  brne PC+2
-  ldi r17, 0
-  mov r11, r17
-
-  ; bit 2: if set, also set lock
-  sbrc r16, 2
-  mov r10, r11
-
-  sbr r16, 0x80
-  ret
+  ; call op!
+  ijmp
 
 convert_wide_zchar:
 
@@ -3632,11 +3595,11 @@ convert_wide_zchar:
   ; return it
   ret
 
-convert_zchar:
+lookup_zchar:
 
   ; compute alphabet offset
   mov r0, r11
-  ldi r17, 26
+  ldi r17, 0x20
   mul r0, r17
 
   ; compute pointer to start of wanted alphabet
@@ -3646,9 +3609,6 @@ convert_zchar:
   brcc PC+2
   inc ZH
 
-  ; adjust character offset
-  subi r16, 6
-
   ; add character offset
   add ZL, r16
   brcc PC+2
@@ -3656,11 +3616,6 @@ convert_zchar:
 
   ; load byte
   lpm r16, Z
-
-  ; reset to lock alphabet
-  mov r11, r10
-
-  ; got something to print
   ret
 
 zstring_done:
@@ -3672,12 +3627,75 @@ zstring_done:
 
   ret
 
-; alphabets, 26 chars each
+; the three alphabets: A0, A1, A2
+
+; normally they start at 6, leaving 26 printable chars. values below 6 are
+; control codes, affecting alphabet selection, printing newlines, etc. in v2+,
+; it starts getting more complicated, with newlines moving into printable
+; space, changes to lock control, etc
+
+; instead of testing for control codes explicitly, instead we embed our own
+; control codes into the alphabet conversion output. any value <32 is an index
+; into a jump table that implements that code
+
+; 0x0 newline
+; 0x1 wide char
+; 0x2 inc current alphabet
+; 0x3 dec current alphabet
+; 0x4 inc current alphabet, set lock
+; 0x5 dec current alphabet, set lock
+
 zchar_alphabet:
-  .db "abcdefghijklmnopqrstuvwxyz"
-  .db "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-  .db " 0123456789.,!?_#'" ; avra's string parsing is buggy as shit
-    .db 0x22, "/\<-:()"
+  ; A0
+  .db " ", 0x0, 0x2, 0x3, 0x4, 0x5, "abcdefghijklmnopqrstuvwxyz"
+  ; A1
+  .db " ", 0x0, 0x2, 0x3, 0x4, 0x5, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  ; A2
+  .db " ", 0x0, 0x2, 0x3, 0x4, 0x5, 0x1, "0123456789.,!?_#'"
+    .db 0x22, "/\<-:()" ; work around avra's buggy string parser (raw double-quote byte)
+
+zchar_op_table:
+  rjmp zchar_op_newline
+  rjmp zchar_op_widechar
+  rjmp zchar_op_inc_alphabet
+  rjmp zchar_op_dec_alphabet
+  rjmp zchar_op_inc_lock_alphabet
+  rjmp zchar_op_dec_lock_alphabet
+
+zchar_op_newline:
+  ldi r16, 0xa
+  ret
+
+zchar_op_widechar:
+  ; stack next two chars and deal with them
+  ldi r18, 2
+  ret
+
+zchar_op_inc_alphabet:
+  inc r11
+  mov r17, r11
+  cpi r17, 3
+  brne PC+2
+  clr r11
+  ret
+
+zchar_op_dec_alphabet:
+  dec r11
+  sbrs r11, 7
+  ret
+  ldi r17, 2
+  mov r11, r17
+  ret
+
+zchar_op_inc_lock_alphabet:
+  rcall zchar_op_inc_alphabet
+  mov r10, r11
+  ret
+
+zchar_op_dec_lock_alphabet:
+  rcall zchar_op_dec_alphabet
+  mov r10, r11
+  ret
 
 
 xmodem_load_ram:
