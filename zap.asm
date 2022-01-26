@@ -11,16 +11,16 @@
 ; stores in z-machine order (H:L)
 .equ z_global_vars = 0x0100
 
-; story file header (first 0x10 bytes)
+; story file header (first 0x20 bytes)
 .equ z_header = 0x02e0
 
 ; temp space for separator list during input parsing
-.equ separator_buffer     = 0x02f0
-.equ separator_buffer_end = 0x02f8
+.equ separator_buffer     = 0x0300
+.equ separator_buffer_end = 0x0308
 
 ; temp space for expanding current dictionary word during input parsing
-.equ word_buffer     = 0x02f8
-.equ word_buffer_end = 0x0300
+.equ word_buffer     = 0x0308
+.equ word_buffer_end = 0x0320
 
 
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
@@ -186,7 +186,7 @@ main:
   rcall ram_read_start
   ldi YL, low(z_header)
   ldi YH, high(z_header)
-  ldi r16, 0x10
+  ldi r16, 0x20
   rcall ram_read_bytes
   rcall ram_end
 
