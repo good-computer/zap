@@ -22,6 +22,12 @@
 .equ word_buffer     = 0x0308
 .equ word_buffer_end = 0x0320
 
+; debug tracking
+.equ z_last_pc_l    = 0x320 ; start of last instruction
+.equ z_last_pc_h    = 0x321 ; /
+.equ z_last_opcode  = 0x322 ; last opcode
+.equ z_last_argtype = 0x323 ; last argtype
+
 
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
 ; SP <-----------
@@ -47,14 +53,6 @@
 ; current op and argtype
 .def z_opcode = r20
 .def z_argtype = r21
-
-; start of last instruction (for debugging)
-.def z_last_pc_l = r14
-.def z_last_pc_h = r15
-
-; last opcode and argtype (for debugging)
-.def z_last_opcode = r13
-.def z_last_argtype = r12
 
 
 .cseg
@@ -260,14 +258,15 @@ decode_op:
   ;rcall usart_tx_byte
 
   ; note start of instruction for reporting
-  movw z_last_pc_l, z_pc_l
+  sts z_last_pc_l, z_pc_l
+  sts z_last_pc_h, z_pc_h
 
   ; get opcode
   rcall ram_read_byte
   adiw z_pc_l, 1
 
   ; record opcode for reporting
-  mov z_last_opcode, r16
+  sts z_last_opcode, r16
 
   ;push r16
   ;rcall usart_tx_byte_hex
@@ -497,7 +496,7 @@ run_op:
   ; args in r2:r3, r4:r5, r6:r7, r8:r9
 
   ; record argtype for reporting
-  mov z_last_argtype, z_argtype
+  sts z_last_argtype, z_argtype
 
   add ZL, z_opcode
   brcc PC+2
@@ -3117,28 +3116,28 @@ dump:
   ldi ZL, low(text_pc*2)
   ldi ZH, high(text_pc*2)
   rcall usart_print_static
-  mov r16, z_last_pc_h
+  lds r16, z_last_pc_h
   rcall usart_tx_byte_hex
-  mov r16, z_last_pc_l
+  lds r16, z_last_pc_l
   rcall usart_tx_byte_hex
   rcall usart_newline
 
   ldi ZL, low(text_opcode*2)
   ldi ZH, high(text_opcode*2)
   rcall usart_print_static
-  mov r16, z_last_opcode
+  lds r16, z_last_opcode
   rcall usart_tx_byte_hex
   rcall usart_newline
 
   ldi ZL, low(text_argtype*2)
   ldi ZH, high(text_argtype*2)
   rcall usart_print_static
-  mov r16, z_last_argtype
+  lds r16, z_last_argtype
   rcall usart_tx_byte_hex
   rcall usart_newline
 
   ; XXX roll this up
-  mov r16, z_last_argtype
+  lds r16, z_last_argtype
   andi r16, 0xc0
   cpi r16, 0xc0
   breq dump_done
@@ -3151,7 +3150,7 @@ dump:
   rcall usart_tx_byte_hex
   rcall usart_newline
 
-  mov r16, z_last_argtype
+  lds r16, z_last_argtype
   andi r16, 0x30
   cpi r16, 0x30
   breq dump_done
@@ -3164,7 +3163,7 @@ dump:
   rcall usart_tx_byte_hex
   rcall usart_newline
 
-  mov r16, z_last_argtype
+  lds r16, z_last_argtype
   andi r16, 0x0c
   cpi r16, 0x0c
   breq dump_done
