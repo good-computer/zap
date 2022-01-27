@@ -54,6 +54,11 @@
 .def z_opcode = r20
 .def z_argtype = r21
 
+; ram start position
+.def ram_pos_l = r12
+.def ram_pos_m = r13
+.def ram_pos_h = r14
+
 
 .cseg
 .org 0x0000
@@ -178,9 +183,9 @@ main:
   movw z_argp_l, XL
 
   ; load header
-  clr r16
-  clr r17
-  clr r18
+  clr ram_pos_l
+  clr ram_pos_m
+  clr ram_pos_h
   rcall ram_read_start
   ldi YL, low(z_header)
   ldi YH, high(z_header)
@@ -215,9 +220,9 @@ main:
   rjmp wd_reset
 
   ; load globals
-  lds r16, z_header+0xd
-  lds r17, z_header+0xc
-  clr r18
+  lds ram_pos_l, z_header+0xd
+  lds ram_pos_m, z_header+0xc
+  clr ram_pos_h
   rcall ram_read_start
   ldi YL, low(z_global_vars)
   ldi YH, high(z_global_vars)
@@ -232,8 +237,8 @@ main:
   lds z_pc_h, z_header+0x6
 
   ; set up to stream from PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
 
@@ -652,8 +657,8 @@ op_loadw:
   rcall ram_end
 
   ; open ram at array cell
-  movw r16, r2
-  clr r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
   rcall ram_read_start
 
   ; get value
@@ -665,8 +670,8 @@ op_loadw:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; done, store value
@@ -688,8 +693,8 @@ op_storew:
   rcall ram_end
 
   ; open ram for write at array cell
-  movw r16, r2
-  clr r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
   rcall ram_write_start
 
   ; write value
@@ -701,8 +706,8 @@ op_storew:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; done!
@@ -722,8 +727,8 @@ op_loadb:
   rcall ram_end
 
   ; open ram at array cell
-  movw r16, r2
-  clr r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
   rcall ram_read_start
 
   ; get value
@@ -735,8 +740,8 @@ op_loadb:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; done, store value
@@ -754,8 +759,8 @@ op_storeb:
   rcall ram_end
 
   ; open ram for write at array cell
-  movw r16, r2
-  clr r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
   rcall ram_write_start
 
   ; write value
@@ -766,8 +771,8 @@ op_storeb:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; done!
@@ -1062,8 +1067,8 @@ op_jin:
   adiw YL, 4
 
   ; open ram at object parent number
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read parent number
@@ -1078,8 +1083,8 @@ op_jin:
   set
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp branch_generic
@@ -1111,8 +1116,8 @@ op_jump:
   rcall ram_end
 
   ; reopen ram at new PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -1153,8 +1158,8 @@ op_call:
   rol r3
 
   ; set up to read routine header
-  movw r16, r2
-  clr r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read local var count
@@ -1244,8 +1249,8 @@ op_ret:
   ld z_pc_h, X+
 
   ; reopen ram at restored PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; PC now at return var for previous instruction, and we can return
@@ -1333,8 +1338,8 @@ get_child_or_sibling:
   inc YH
 
   ; open ram at wanted object number
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read wanted object number
@@ -1358,8 +1363,8 @@ get_child_or_sibling:
   set
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp branch_generic
@@ -1386,8 +1391,8 @@ op_get_parent:
   adiw YL, 4
 
   ; open ram at object parent number
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read parent number
@@ -1400,8 +1405,8 @@ op_get_parent:
   clr r3
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp store_op_result
@@ -1437,8 +1442,8 @@ op_insert_obj:
   rcall get_object_pointer
   adiw YL, 6 ; move to child
 
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; get child
@@ -1448,8 +1453,8 @@ op_insert_obj:
   rcall ram_end
 
   ; and replacing destination child with moving object
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_write_start
 
   mov r16, r2
@@ -1462,8 +1467,8 @@ op_insert_obj:
   rcall get_object_pointer
   adiw YL, 4 ; move to parent
 
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_write_start
 
   ; write new parent and sibling (dest, and dest's child)
@@ -1474,8 +1479,8 @@ op_insert_obj:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -1502,8 +1507,8 @@ op_remove_obj:
   adiw YL, 4 ; move to parent
 
   ; prep for write
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_write_start
 
   ; zero parent and sibling
@@ -1514,8 +1519,8 @@ op_remove_obj:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -1544,8 +1549,8 @@ detach_object:
   adiw YL, 4 ; move to parent
 
   ; prep for read
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; load parent and sibling object number
@@ -1560,8 +1565,8 @@ detach_object:
   adiw YL, 6 ; move to child
 
   ; prep for read
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; load first child object number
@@ -1575,8 +1580,8 @@ detach_object:
   brne unlink_object
 
   ; prep for write
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_write_start
 
   ; write new child to our sibling
@@ -1603,8 +1608,8 @@ unlink_object:
   adiw YL, 5 ; move to sibling
 
   ; prep for read
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; get sibling
@@ -1620,8 +1625,8 @@ unlink_object:
 
   ; yes, the currently-pointed-at object points to the moving object, so we
   ; need to repoint it to the moving object's sibling
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_write_start
 
   ; write new sibling
@@ -1654,8 +1659,8 @@ op_test_attr:
   push r16
 
   ; open ram at attribute position
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read the single byte
@@ -1673,8 +1678,8 @@ op_test_attr:
   set
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp branch_generic
@@ -1703,8 +1708,8 @@ write_attr:
   push r16
 
   ; open ram at attribute position
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read the single byte
@@ -1716,8 +1721,8 @@ write_attr:
   push r16
 
   ; set up for write to attribute position
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_write_start
 
   ; get value and mask back
@@ -1741,8 +1746,8 @@ write_attr:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -1791,8 +1796,8 @@ op_put_prop:
   push r16
 
   ; prep for write
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_write_start
 
   ; get the length back
@@ -1818,8 +1823,8 @@ op_put_prop:
   rcall ram_end
 
   ; reset ram to PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -1850,8 +1855,8 @@ op_get_prop:
   ; prep load from defaults
 
   ; object table location
-  lds r16, z_header+0xb
-  lds r17, z_header+0xa
+  lds ram_pos_l, z_header+0xb
+  lds ram_pos_m, z_header+0xa
 
   ; properties are counted from 1
   dec r4
@@ -1860,12 +1865,12 @@ op_get_prop:
   lsl r4
 
   ; offset into default table
-  add r16, r4
+  add ram_pos_l, r4
   brcc PC+2
-  inc r17
+  inc ram_pos_m
 
   ; ready read
-  clr r18
+  clr ram_pos_h
   rcall ram_read_start
 
   ; two-byte length
@@ -1900,8 +1905,8 @@ get_prop_value:
   rcall ram_end
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; return!
@@ -1942,8 +1947,8 @@ op_get_prop_addr:
   movw r2, YL
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; great
@@ -1961,7 +1966,8 @@ op_get_prop_len:
   sbci r17, 0
 
   ; setup for read
-  clr r18
+  movw ram_pos_l, r16
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read length
@@ -1982,8 +1988,8 @@ op_get_prop_len:
   clr r3
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp store_op_result
@@ -2028,8 +2034,8 @@ op_get_next_prop:
   clr r3
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp store_op_result
@@ -2044,11 +2050,11 @@ op_sread:
   rcall ram_end
 
   ; write zero to parse buffer +1, this is count of parsed tokens, which starts at zero
-  movw r16, r4
-  inc r16
+  movw ram_pos_l, r4
+  inc ram_pos_l
   brne PC+2
-  inc r17
-  clr r18
+  inc ram_pos_m
+  clr ram_pos_h
   rcall ram_write_start
 
   ; write zero
@@ -2058,8 +2064,8 @@ op_sread:
   rcall ram_end
 
   ; setup to read buffer
-  movw r16, r2
-  clr r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read max length
@@ -2077,11 +2083,11 @@ op_sread:
   rcall usart_line_input
 
   ; set up to write text buffer
-  movw r16, r2
-  inc r16
+  movw ram_pos_l, r2
+  inc ram_pos_l
   brne PC+2
-  inc r17
-  clr r18
+  inc ram_pos_m
+  clr ram_pos_h
   rcall ram_write_start
 
   ; copy text into memory, including trailing null
@@ -2105,9 +2111,9 @@ op_sread:
   rcall ram_end
 
   ; dictionary location
-  lds r16, z_header+0x9
-  lds r17, z_header+0x8
-  clr r18
+  lds ram_pos_l, z_header+0x9
+  lds ram_pos_m, z_header+0x8
+  clr ram_pos_h
   rcall ram_read_start
 
   ; number of word separators
@@ -2121,21 +2127,11 @@ op_sread:
   brlo PC+2
   rjmp fatal
 
-  ; calculate and push location in ram of first dict entry
-  ; need this to reset ram each time around the loop
-  lds ZL, z_header+0x9
-  lds ZH, z_header+0x8
-
-  ; add number of separators
-  add ZL, r17
-  brcc PC+2
-  inc ZH
-
-  ; num separators (1) + entry length (1) + number of entries (2)
-  adiw ZL, 4
-
-  ; set aside for later
-  movw r12, ZL
+  ; while we're here, compute the offset of the first entry in the dictionary;
+  ; we'll need it later
+  ldi r16, 4 ; num separators (1) + entry length (1) + num entries (2)
+  add r16, r17
+  mov r15, r16
 
   ; make word separators into a null-terminated string
   ldi ZL, low(separator_buffer)
@@ -2187,8 +2183,8 @@ parse_next_input:
   pop r16
 
   ; reopen ram at PC
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   ; wow
@@ -2205,11 +2201,17 @@ parse_next_input:
   ; it with the current input position. if it matches, then set the word number
   ; as the token and go to the next one
 
-  ; get dict start back
-  movw r16, r12
+  ; set up for read from start of dictionary
 
-  ; prep for read
-  clr r18
+  ; dictionary pointer + offset
+  lds ram_pos_l, z_header+0x9
+  lds ram_pos_m, z_header+0x8
+  clr ram_pos_h
+
+  add ram_pos_l, r15
+  adc ram_pos_m, ram_pos_h
+  adc ram_pos_h, ram_pos_h
+
   rcall ram_read_start
 
 dict_word_next:
@@ -2368,11 +2370,18 @@ matched_word:
   mul r9, r16
   add r11, r0
 
-  ; add location of first entry
-  add r10, r12
-  adc r11, r13
+  ; add location of dictionary start
+  lds r16, z_header+0x9
+  lds r17, z_header+0x8
+  add r10, r16
+  adc r11, r17
 
-  ; location of matched entry now in r11:r12
+  ; and offset to first entry
+  clr r16
+  add r10, r15
+  adc r11, r16
+
+  ; location of matched entry now in r10:r11
 
 consume_up_to_separator:
   ; consume input up to next separator
@@ -2438,8 +2447,8 @@ compute_text_position:
   rcall ram_end
 
   ; time to store it! parse buffer position is in r4:r5
-  movw r16, r4
-  clr r18
+  movw ram_pos_l, r4
+  clr ram_pos_h
   rcall ram_read_start
 
   ; load max tokens and count of tokens
@@ -2472,7 +2481,8 @@ compute_text_position:
   inc r17
 
   ; set up for write
-  clr r18
+  movw ram_pos_l, r16
+  clr ram_pos_h
   rcall ram_write_start
 
   ldi YL, low(word_buffer)
@@ -2483,11 +2493,11 @@ compute_text_position:
   rcall ram_end
 
   ; set up to increment token count
-  movw r16, r4
-  inc r16
+  movw ram_pos_l, r4
+  inc ram_pos_l
   brne PC+2
-  inc r17
-  clr r18
+  inc ram_pos_m
+  clr ram_pos_h
   rcall ram_write_start
 
   ; bump and store it
@@ -2556,8 +2566,8 @@ op_print_addr:
   rcall ram_end
 
   ; open ram at address
-  movw r16, r2
-  clr r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
   rcall ram_read_start
 
   rcall print_zstring
@@ -2565,8 +2575,8 @@ op_print_addr:
   rcall ram_end
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -2580,11 +2590,11 @@ op_print_paddr:
 
   ; unpack address. string table for zork extends past 0xffff, so we need to
   ; run 17 bits here
-  movw r16, r2
-  clr r18
-  lsl r16
-  rol r17
-  rol r18
+  movw ram_pos_l, r2
+  clr ram_pos_h
+  lsl ram_pos_l
+  rol ram_pos_m
+  rol ram_pos_h
 
   ; open ram at address
   rcall ram_read_start
@@ -2594,8 +2604,8 @@ op_print_paddr:
   rcall ram_end
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -2690,8 +2700,8 @@ op_print_obj:
   adiw YL, 7
 
   ; open ram at object property pointer
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read property pointer
@@ -2706,8 +2716,8 @@ op_print_obj:
   adiw YL, 1
 
   ; open for read at object name
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   rcall print_zstring
@@ -2715,8 +2725,8 @@ op_print_obj:
   rcall ram_end
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -3037,8 +3047,8 @@ branch_check_invert:
   sbiw z_pc_l, 2
 
   ; reset ram
-  movw r16, z_pc_l
-  clr r18
+  movw ram_pos_l, z_pc_l
+  clr ram_pos_h
   rcall ram_read_start
 
   rjmp decode_op
@@ -3303,8 +3313,8 @@ get_object_property_pointer:
   adiw YL, 7
 
   ; open ram at object property pointer
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; read property pointer
@@ -3316,8 +3326,8 @@ get_object_property_pointer:
   rcall ram_end
 
   ; open for read at start of property table
-  movw r16, YL
-  clr r18
+  movw ram_pos_l, YL
+  clr ram_pos_h
   rcall ram_read_start
 
   ; get short name length
@@ -3795,9 +3805,9 @@ xlr_ready:
   ; ok, we're really doing this. set up to recieve
 
   ; initialise RAM for write
-  clr r16
-  clr r17
-  clr r18
+  clr ram_pos_l
+  clr ram_pos_m
+  clr ram_pos_h
   rcall ram_write_start
 
   ; point to receive buffer
@@ -4125,45 +4135,45 @@ usart_tx_bytes_hex_done:
 
 ; begin read from SRAM
 ; inputs
-;   r16:r17:r18: 24-bit address
+;   ram_pos_[lmh]: 24-bit address
 ram_read_start:
-  ldi r19, 0x3 ; READ
+  ldi r16, 0x3 ; READ
   rjmp ram_start
 
 ; begin write to SRAM
 ; inputs
-;   r16:r17:r18: 24-bit address
+;   ram_pos_[lmh]: 24-bit address
 ram_write_start:
-  ldi r19, 0x2 ; WRITE
+  ldi r16, 0x2 ; WRITE
 
   ; fall through
 
 ; start SRAM read/write op
-;   r16:r17:r18: 24-bit address
-;   r19: command (0x2 read, 0x3 write)
+;   ram_pos_[lmh]: 24-bit address
+;   r16: command (0x2 read, 0x3 write)
 ram_start:
 
   ; pull /CS low to enable device
   cbi PORTB, PB2
 
   ; send command
-  out SPDR, r19
-  in r19, SPSR
-  sbrs r19, SPIF
+  out SPDR, r16
+  in r16, SPSR
+  sbrs r16, SPIF
   rjmp PC-2
 
   ; send address
-  out SPDR, r18
-  in r19, SPSR
-  sbrs r19, SPIF
+  out SPDR, ram_pos_h
+  in r16, SPSR
+  sbrs r16, SPIF
   rjmp PC-2
-  out SPDR, r17
-  in r19, SPSR
-  sbrs r19, SPIF
+  out SPDR, ram_pos_m
+  in r16, SPSR
+  sbrs r16, SPIF
   rjmp PC-2
-  out SPDR, r16
-  in r19, SPSR
-  sbrs r19, SPIF
+  out SPDR, ram_pos_l
+  in r16, SPSR
+  sbrs r16, SPIF
   rjmp PC-2
 
   ret
