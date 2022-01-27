@@ -54,7 +54,7 @@
 .def z_opcode = r20
 .def z_argtype = r21
 
-; ram start position
+; ram start position, updated by ram_ subs to shadow the internal sram address counter
 .def ram_pos_l = r12
 .def ram_pos_m = r13
 .def ram_pos_h = r14
@@ -4187,6 +4187,11 @@ ram_end:
 ;   r16: number of bytes to read
 ;   Y: where to store it
 ram_read_bytes:
+  clr r17
+  add ram_pos_l, r16
+  adc ram_pos_m, r17
+  adc ram_pos_h, r17
+
   out SPDR, r16
   in r17, SPSR
   sbrs r17, SPIF
@@ -4200,6 +4205,12 @@ ram_read_bytes:
 ; read single byte from SRAM, previously set up with ram_read_start
 ;   r16: byte read
 ram_read_byte:
+  ldi r16, 1
+  add ram_pos_l, r16
+  clr r16
+  adc ram_pos_m, r16
+  adc ram_pos_h, r16
+
   out SPDR, r16
   in r16, SPSR
   sbrs r16, SPIF
@@ -4210,6 +4221,12 @@ ram_read_byte:
 ; read two bytes from SRAM, previously set up with ram_read_start
 ;   r16:r17: byte pair read
 ram_read_pair:
+  ldi r16, 2
+  add ram_pos_l, r16
+  clr r16
+  adc ram_pos_m, r16
+  adc ram_pos_h, r16
+
   out SPDR, r16
   in r16, SPSR
   sbrs r16, SPIF
@@ -4226,6 +4243,11 @@ ram_read_pair:
 ;   r16: number of bytes to write
 ;   Y: pointer to stuff to write
 ram_write_bytes:
+  clr r17
+  add ram_pos_l, r16
+  adc ram_pos_m, r17
+  adc ram_pos_h, r17
+
   ld r17, Y+
   out SPDR, r17
   in r17, SPSR
@@ -4242,6 +4264,12 @@ ram_write_byte:
   in r16, SPSR
   sbrs r16, SPIF
   rjmp PC-2
+
+  ldi r16, 1
+  add ram_pos_l, r16
+  clr r16
+  adc ram_pos_m, r16
+  adc ram_pos_h, r16
   ret
 
 ; write two bytse to SRAM, previously set up with ram_write_start
@@ -4256,11 +4284,22 @@ ram_write_pair:
   in r17, SPSR
   sbrs r17, SPIF
   rjmp PC-2
+
+  ldi r16, 2
+  add ram_pos_l, r16
+  clr r16
+  adc ram_pos_m, r16
+  adc ram_pos_h, r16
   ret
 
 ; skip bytes
 ;   r16: number to skip
 ram_skip_bytes:
+  clr r17
+  add ram_pos_l, r16
+  adc ram_pos_m, r17
+  adc ram_pos_h, r17
+
   out SPDR, r16
   in r17, SPSR
   sbrs r17, SPIF
