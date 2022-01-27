@@ -28,6 +28,19 @@
 .equ z_last_opcode  = 0x322 ; last opcode
 .equ z_last_argtype = 0x323 ; last argtype
 
+; storage for original zstring processing state while processing an abbreviation string
+.equ zstring_state_adv_l         = 0x0323
+.equ zstring_state_adv_h         = 0x0324
+.equ zstring_state_ram_pos_l     = 0x0325
+.equ zstring_state_ram_pos_m     = 0x0326
+.equ zstring_state_ram_pos_h     = 0x0327
+.equ zstring_state_word_pos      = 0x0328
+.equ zstring_state_word_l        = 0x0329
+.equ zstring_state_word_h        = 0x032a
+.equ zstring_state_lock_alphabet = 0x032b
+.equ zstring_state_cur_alphabet  = 0x032c
+.equ zstring_state_flags         = 0x032d
+
 
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
 ; SP <-----------
@@ -235,6 +248,10 @@ main:
   ; initialise PC
   lds z_pc_l, z_header+0x7
   lds z_pc_h, z_header+0x6
+
+  ; clear string processing state
+  clr r16
+  sts zstring_state_flags, r16
 
   ; set up to stream from PC
   movw ram_pos_l, z_pc_l
@@ -3457,7 +3474,9 @@ print_next:
 ;   r10: lock alphabet
 ;   r11: current alphabet
 ;   r18: number of remaining chars to read for wide character
+;   r18 (bit 7): next byte is an abbreviation index
 ;   r19: number of remaining chars in current word (0=new word will be read on next call)
+;   r20,r21: current 3-char word (remaining bits)
 ;   T: end-of-string flag, further calls to zstring_next will return 0
 
 zstring_init:
@@ -3491,12 +3510,19 @@ zstring_next:
   brpl next_zchar
 
   ; was previous word the last one?
-  brtc PC+3
+  brtc next_zword
 
-  ; yes, so there's nothing else to do
+  ; yes, are we doing abbreviation subprocessing?
+  lds r16, zstring_state_flags
+  tst r16
+  brpl PC+2
+  rjmp finish_abbreviation
+
+  ; so there's nothing else to do
   clr r16
   ret
 
+next_zword:
   ; read the word
   rcall ram_read_pair
   adiw YL, 2
@@ -3531,11 +3557,13 @@ next_zchar:
   rol r20
   rol r16
 
-  ; handline widechar?
+  ; handline widechar or abbreviation?
   tst r18
+  brpl PC+2
+  rjmp expand_abbreviation
   breq PC+6
 
-  ; set it aside
+  ; widechar, set it aside
   st -X, r16
 
   ; got them all?
@@ -3633,6 +3661,117 @@ lookup_zchar:
   lpm r16, Z
   ret
 
+expand_abbreviation:
+
+  ; we're going to call back into the zstring system, so we need to save its
+  ; state, or at least enough that we can recreate its state
+  rcall ram_end
+
+  ; save advance position
+  sts zstring_state_adv_l, YL
+  sts zstring_state_adv_h, YH
+
+  ; save ram pointer, so we can reopen in the right place
+  sts zstring_state_ram_pos_l, ram_pos_l
+  sts zstring_state_ram_pos_m, ram_pos_m
+  sts zstring_state_ram_pos_h, ram_pos_h
+
+  ; save word position
+  sts zstring_state_word_pos, r19
+
+  ; and word in progress
+  sts zstring_state_word_l, r20
+  sts zstring_state_word_h, r21
+
+  ; save alphabets
+  sts zstring_state_lock_alphabet, r10
+  sts zstring_state_cur_alphabet, r11
+
+  ; save flags
+  ldi r17, 0x80 ; top bit is "doing abbreviation" flag
+  bld r17, 0    ; bottom bit is original "end of string" flag
+  sts zstring_state_flags, r17
+
+  ; index is into a table of words, so double the offset to get bytes
+  lsl r16
+
+  ; abbreviation table location
+  lds ram_pos_l, z_header+0x19
+  lds ram_pos_m, z_header+0x18
+  clr ram_pos_h
+
+  ; add offset
+  add ram_pos_l, r16
+  adc ram_pos_m, ram_pos_h
+  adc ram_pos_h, ram_pos_h
+
+  ; go
+  rcall ram_read_start
+
+  ; read string location
+  rcall ram_read_byte
+  mov ram_pos_m, r16
+  rcall ram_read_byte
+  mov ram_pos_l, r16
+
+  rcall ram_end
+
+  ; complete string location and set up ram
+  clr ram_pos_h
+
+  ; string location is a word, so shift to get a byte address
+  lsl ram_pos_l
+  rol ram_pos_m
+  rol ram_pos_h
+  rcall ram_read_start
+
+  ; reset zstring processing state
+  rcall zstring_init
+
+  ; finally, jump back and get the "next" char from the new string
+  rjmp zstring_next
+
+finish_abbreviation:
+
+  rcall zstring_done
+
+  rcall ram_end
+
+  ; restore advance position
+  lds YL, zstring_state_adv_l
+  lds YH, zstring_state_adv_h
+
+  ; reopen ram at the previous position
+  lds ram_pos_l, zstring_state_ram_pos_l
+  lds ram_pos_m, zstring_state_ram_pos_m
+  lds ram_pos_h, zstring_state_ram_pos_h
+  rcall ram_read_start
+
+  ; restore word position
+  lds r19, zstring_state_word_pos
+
+  ; and word in progress
+  lds r20, zstring_state_word_l
+  lds r21, zstring_state_word_h
+
+  ; restore alphabets
+  lds r10, zstring_state_lock_alphabet
+  lds r11, zstring_state_cur_alphabet
+
+  ; restore flags
+  lds r16, zstring_state_flags
+  bst r16, 0
+
+  ; not currently in a widechar
+  clr r18
+
+  ; clear "doing abbreviation" flag
+  clr r16
+  sts zstring_state_flags, r16
+
+  ; continue with the original string
+  rjmp zstring_next
+
 zstring_done:
   ; if we ended mid wide-byte, then drop the single sitting on the stack
   ; shouldn't happen but we can't recover if we get this wrong
@@ -3686,7 +3825,7 @@ zchar_op_table:
   rjmp zchar_op_dec_alphabet
   rjmp zchar_op_inc_lock_alphabet
   rjmp zchar_op_dec_lock_alphabet
-  ret ; zchar_op_abbrev
+  rjmp zchar_op_abbrev
 
 zchar_op_newline:
   ldi r16, 0xa
@@ -3721,6 +3860,11 @@ zchar_op_inc_lock_alphabet:
 zchar_op_dec_lock_alphabet:
   rcall zchar_op_dec_alphabet
   mov r10, r11
+  ret
+
+zchar_op_abbrev:
+  ; flag abbrev for next char
+  ldi r18, 0x80
   ret
 
 
