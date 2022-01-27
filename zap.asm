@@ -3557,6 +3557,12 @@ next_zchar:
   rol r20
   rol r16
 
+  ;push r16
+  ;push r17
+  ;rcall usart_tx_byte_hex
+  ;pop r17
+  ;pop r16
+
   ; handline widechar or abbreviation?
   tst r18
   brpl PC+2
@@ -3692,6 +3698,16 @@ expand_abbreviation:
   bld r17, 0    ; bottom bit is original "end of string" flag
   sts zstring_state_flags, r17
 
+  ;push r16
+  ;ldi r16, '['
+  ;rcall usart_tx_byte
+  ;pop r16
+  ;push r16
+  ;rcall usart_tx_byte_hex
+  ;ldi r16, ':'
+  ;rcall usart_tx_byte
+  ;pop r16
+
   ; index is into a table of words, so double the offset to get bytes
   lsl r16
 
@@ -3708,22 +3724,45 @@ expand_abbreviation:
   ; go
   rcall ram_read_start
 
-  ; read string location
-  rcall ram_read_byte
-  mov ram_pos_m, r16
-  rcall ram_read_byte
-  mov ram_pos_l, r16
+  ;mov r16, ram_pos_h
+  ;rcall usart_tx_byte_hex
+  ;mov r16, ram_pos_m
+  ;rcall usart_tx_byte_hex
+  ;mov r16, ram_pos_l
+  ;rcall usart_tx_byte_hex
+  ;ldi r16, '>'
+  ;rcall usart_tx_byte
 
+  ; read string location
+  rcall ram_read_pair
   rcall ram_end
 
   ; complete string location and set up ram
+  mov ram_pos_l, r17
+  mov ram_pos_m, r16
   clr ram_pos_h
+
+  ;mov r16, ram_pos_h
+  ;rcall usart_tx_byte_hex
+  ;mov r16, ram_pos_m
+  ;rcall usart_tx_byte_hex
+  ;mov r16, ram_pos_l
+  ;rcall usart_tx_byte_hex
+  ;ldi r16, '*'
+  ;rcall usart_tx_byte
 
   ; string location is a word, so shift to get a byte address
   lsl ram_pos_l
   rol ram_pos_m
   rol ram_pos_h
   rcall ram_read_start
+
+  ;mov r16, ram_pos_h
+  ;rcall usart_tx_byte_hex
+  ;mov r16, ram_pos_m
+  ;rcall usart_tx_byte_hex
+  ;mov r16, ram_pos_l
+  ;rcall usart_tx_byte_hex
 
   ; reset zstring processing state
   rcall zstring_init
@@ -3736,6 +3775,9 @@ finish_abbreviation:
   rcall zstring_done
 
   rcall ram_end
+
+  ;ldi r16, ']'
+  ;rcall usart_tx_byte
 
   ; restore advance position
   lds YL, zstring_state_adv_l
