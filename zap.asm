@@ -3855,6 +3855,8 @@ zstring_done:
 ; 0x6 abbreviation (bank 1)
 ; 0x7 abbreviation (bank 2)
 ; 0x8 abbreviation (bank 3)
+; 0x9 switch to alphabet A1
+; 0xa switch to alphabet A2
 
 zchar_alphabet_v1:
   ; A0
@@ -3876,11 +3878,11 @@ zchar_alphabet_v2:
 
 zchar_alphabet_v3:
   ; A0
-  .db " ", 0x6, 0x7, 0x8, 0x2, 0x3, "abcdefghijklmnopqrstuvwxyz"
+  .db " ", 0x6, 0x7, 0x8, 0x9, 0xa, "abcdefghijklmnopqrstuvwxyz"
   ; A1
-  .db " ", 0x6, 0x7, 0x8, 0x2, 0x3, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  .db " ", 0x6, 0x7, 0x8, 0x9, 0xa, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   ; A2
-  .db " ", 0x6, 0x7, 0x8, 0x2, 0x3, 0x1, 0x0, "0123456789.,!?_#"
+  .db " ", 0x6, 0x7, 0x8, 0x9, 0xa, 0x1, 0x0, "0123456789.,!?_#"
     .db 0x27, 0x22, "/\-:()"
 
 zchar_op_table:
@@ -3893,6 +3895,8 @@ zchar_op_table:
   rjmp zchar_op_abbrev_bank1
   rjmp zchar_op_abbrev_bank2
   rjmp zchar_op_abbrev_bank3
+  rjmp zchar_op_switch_alphabet_a1
+  rjmp zchar_op_switch_alphabet_a2
 
 zchar_op_newline:
   ldi r16, 0xa
@@ -3942,6 +3946,16 @@ zchar_op_abbrev_bank2:
 zchar_op_abbrev_bank3:
   ; flag abbrev for next char
   ldi r18, 0x82
+  ret
+
+zchar_op_switch_alphabet_a1:
+  ldi r17, 1
+  mov r11, r17
+  ret
+
+zchar_op_switch_alphabet_a2:
+  ldi r17, 2
+  mov r11, r17
   ret
 
 
