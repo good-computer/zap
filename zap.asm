@@ -3473,8 +3473,8 @@ print_next:
 ;   Y: number of RAM bytes advanced (for moving PC, see op_print)
 ;   r10: lock alphabet
 ;   r11: current alphabet
-;   r18: number of remaining chars to read for wide character
-;   r18 (bit 7): next byte is an abbreviation index
+;   r18 (bit 7 clear): number of remaining chars to read for wide character
+;   r18 (bit 7 set):   next byte is an abbreviation index, bottom bits are abbreviation bank
 ;   r19: number of remaining chars in current word (0=new word will be read on next call)
 ;   r20,r21: current 3-char word (remaining bits)
 ;   T: end-of-string flag, further calls to zstring_next will return 0
@@ -3646,10 +3646,16 @@ lookup_zchar:
   brne PC+4
   ldi ZL, low(zchar_alphabet_v1*2)
   ldi ZH, high(zchar_alphabet_v1*2)
-  rjmp PC+3
+  rjmp alphabet_ready
+  cpi r17, 2
+  brne PC+4
   ldi ZL, low(zchar_alphabet_v2*2)
   ldi ZH, high(zchar_alphabet_v2*2)
+  rjmp alphabet_ready
+  ldi ZL, low(zchar_alphabet_v3*2)
+  ldi ZH, high(zchar_alphabet_v3*2)
 
+alphabet_ready:
   ; compute and add alphabet offset
   mov r0, r11
   ldi r17, 0x20
@@ -3697,6 +3703,12 @@ expand_abbreviation:
   ldi r17, 0x80 ; top bit is "doing abbreviation" flag
   bld r17, 0    ; bottom bit is original "end of string" flag
   sts zstring_state_flags, r17
+
+  ; compute start of wanted bank and add to index
+  andi r18, 0x3
+  ldi r17, 0x20
+  mul r18, r17
+  add r16, r0
 
   ;push r16
   ;ldi r16, '['
@@ -3840,7 +3852,9 @@ zstring_done:
 ; 0x3 dec current alphabet
 ; 0x4 inc current alphabet, set lock
 ; 0x5 dec current alphabet, set lock
-; 0x6 abbreviation
+; 0x6 abbreviation (bank 1)
+; 0x7 abbreviation (bank 2)
+; 0x8 abbreviation (bank 3)
 
 zchar_alphabet_v1:
   ; A0
@@ -3860,6 +3874,15 @@ zchar_alphabet_v2:
   .db " ", 0x6, 0x2, 0x3, 0x4, 0x5, 0x1, 0x0, "0123456789.,!?_#"
     .db 0x27, 0x22, "/\-:()"
 
+zchar_alphabet_v3:
+  ; A0
+  .db " ", 0x6, 0x7, 0x8, 0x2, 0x3, "abcdefghijklmnopqrstuvwxyz"
+  ; A1
+  .db " ", 0x6, 0x7, 0x8, 0x2, 0x3, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  ; A2
+  .db " ", 0x6, 0x7, 0x8, 0x2, 0x3, 0x1, 0x0, "0123456789.,!?_#"
+    .db 0x27, 0x22, "/\-:()"
+
 zchar_op_table:
   rjmp zchar_op_newline
   rjmp zchar_op_widechar
@@ -3867,7 +3890,9 @@ zchar_op_table:
   rjmp zchar_op_dec_alphabet
   rjmp zchar_op_inc_lock_alphabet
   rjmp zchar_op_dec_lock_alphabet
-  rjmp zchar_op_abbrev
+  rjmp zchar_op_abbrev_bank1
+  rjmp zchar_op_abbrev_bank2
+  rjmp zchar_op_abbrev_bank3
 
 zchar_op_newline:
   ldi r16, 0xa
@@ -3904,9 +3929,19 @@ zchar_op_dec_lock_alphabet:
   mov r10, r11
   ret
 
-zchar_op_abbrev:
+zchar_op_abbrev_bank1:
   ; flag abbrev for next char
   ldi r18, 0x80
+  ret
+
+zchar_op_abbrev_bank2:
+  ; flag abbrev for next char
+  ldi r18, 0x81
+  ret
+
+zchar_op_abbrev_bank3:
+  ; flag abbrev for next char
+  ldi r18, 0x82
   ret
 
 
