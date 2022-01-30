@@ -2407,10 +2407,12 @@ matched_word:
   ; location of matched entry now in r10:r11
 
 consume_up_to_separator:
-  ; consume input up to next separator
 
   ; bring Z back to end of word
   movw ZL, r20
+
+consume_next:
+  ; consume input up to next separator
 
   ldi YL, low(separator_buffer)
   ldi YH, high(separator_buffer)
@@ -2439,7 +2441,7 @@ consume_up_to_separator:
 
   ; not a separator, advance and retry
   adiw ZL, 1
-  rjmp consume_up_to_separator
+  rjmp consume_next
 
 compute_text_position:
 
