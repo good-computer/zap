@@ -2259,7 +2259,8 @@ dict_char_next:
 
   ; it seems that not all words have end markers, so we'll have figure it out
   ; ourselves. if YL (count of bytes taken) is 4, and r19 (remaining chars in
-  ; current 2-byte word) is 0, then we're done
+  ; current 2-byte word) is 0, then we're done (that is, we're exactly six
+  ; zchars in, which is the max length of a dictionary word)
   cpi YL, 4
   brne dict_char_next
   tst r19
@@ -2273,10 +2274,11 @@ dict_word_done:
   st Z, r16
 
   ; walk back and zero all the 0x5 padding bytes
+  ; XXX I'm not sure there can be any 0x5 padding bytes here, as 0x5 has
+  ;     meaning to the zstring exploder, which won't ever return one
   ld r17, -Z
   cpi r17, 0x5
   brne PC+3
-
   st Z, r16
   rjmp PC-4
 
@@ -2303,7 +2305,11 @@ dict_word_done:
   adiw ZL, 1
   rjmp PC-7
 
-  ; failed compare, lets find out why
+  ; fell out of compare loop; lets find out why
+
+  ; remember the current buffer position at end of word, so we can restore it
+  ; later to compute token length and also continue parse from this point
+  movw r20, ZL
 
   ; get the skip count back off the stack. we'll re-push it before we loop, if we loop
   pop r18
@@ -2403,6 +2409,9 @@ matched_word:
 consume_up_to_separator:
   ; consume input up to next separator
 
+  ; bring Z back to end of word
+  movw ZL, r20
+
   ldi YL, low(separator_buffer)
   ldi YH, high(separator_buffer)
 
@@ -2437,8 +2446,8 @@ compute_text_position:
   ; push the skip count back
   push r18
 
-  ; start of input text is in r6:r7, end now in Z, so we can compute length
-  mov r0, ZL
+  ; start of input text is in r6:r7, end in r20, so we can compute length
+  mov r0, r20
   sub r0, r6
 
   ; and position
@@ -2462,6 +2471,20 @@ compute_text_position:
   st Y+, r1
 
   rcall ram_end
+
+  ;push ZL
+  ;push ZH
+  ;push r16
+  ;push r17
+  ;ldi ZL, low(word_buffer)
+  ;ldi ZH, high(word_buffer)
+  ;ldi r16, 4
+  ;clr r17
+  ;rcall usart_tx_bytes_hex
+  ;pop r17
+  ;pop r16
+  ;pop ZH
+  ;pop ZL
 
   ; time to store it! parse buffer position is in r4:r5
   movw ram_pos_l, r4
