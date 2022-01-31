@@ -38,8 +38,7 @@
 .equ zstring_state_word_l        = 0x0329
 .equ zstring_state_word_h        = 0x032a
 .equ zstring_state_lock_alphabet = 0x032b
-.equ zstring_state_cur_alphabet  = 0x032c
-.equ zstring_state_flags         = 0x032d
+.equ zstring_state_flags         = 0x032c
 
 
 ; z stack. word values are stored in local order (L:H), so H must be pushed first
@@ -3722,7 +3721,6 @@ expand_abbreviation:
 
   ; save alphabets
   sts zstring_state_lock_alphabet, r10
-  sts zstring_state_cur_alphabet, r11
 
   ; save flags
   ldi r17, 0x80 ; top bit is "doing abbreviation" flag
@@ -3835,7 +3833,7 @@ finish_abbreviation:
 
   ; restore alphabets
   lds r10, zstring_state_lock_alphabet
-  lds r11, zstring_state_cur_alphabet
+  mov r11, r10
 
   ; restore flags
   lds r16, zstring_state_flags
